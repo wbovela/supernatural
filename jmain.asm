@@ -9,7 +9,7 @@ SCREEN_CHAR      = 52224
 ;this creates a basic start
 *=$0801
 
-          ;SYS 2064
+          ;10 SYS 2064
           !byte $0C,$08,$0A,$00,$9E,$20,$32,$30,$36,$34,$00,$00,$00,$00,$00
 
           ;init sprite registers
