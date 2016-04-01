@@ -5,6 +5,11 @@
 
 ;address of the screen buffer
 SCREEN_CHAR      = 52224
+CIA2_PORTA		= $DD00
+VIC_START		= $D000
+VIC_SPRITE_EN	= $D015
+VIC_MEMORY		= $D018
+VIC_BORDER_COL	= $D020
 
 ;this creates a basic start
 *=$0801
@@ -15,21 +20,21 @@ SCREEN_CHAR      = 52224
           ;init sprite registers
           ;no visible sprites
           lda #0
-          sta 53248 + 21
+          sta VIC_SPRITE_EN
           
           ;set charset
-          lda #$3c
-          sta 53272
+          lda #%00111100		; Bits 1-3 select character dot data location 
+          sta VIC_MEMORY		; so %1100=12, 12*1024=$3000, character location = $c000 + $3000 = $f000 
 
           ;VIC bank
-          lda 56576
-          and #$fc
-          sta 56576
+          lda CIA2_PORTA
+          and #%11111100		; Bit 0 and 1 select Bank 3: $C000-$FFFF 
+          sta CIA2_PORTA
 
           ;the main game loop
 GameLoop  
           ;border flashing
-          inc 53280
+          inc VIC_BORDER_COL
           ;top left char
           inc SCREEN_CHAR
           
