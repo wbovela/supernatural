@@ -4,7 +4,7 @@
 ;define constants here
 
 ;address of the screen buffer
-SCREEN_CHAR      = 52224
+SCREEN_CHAR      = $CC00; 52224
 CIA2_PORTA		= $DD00
 VIC_START		= $D000
 VIC_SPRITE_EN	= $D015
@@ -25,7 +25,9 @@ VIC_BORDER_COL	= $D020
           ;set charset
           lda #%00111100		; Bits 1-3 select character dot data location 
           sta VIC_MEMORY		; so %1100=12, 12*1024=$3000, character location = $c000 + $3000 = $f000 
-
+								; Bits 4-7 select video matrix base.
+								; %0011=3, 3*1024=3072=$C00, screen location =
+								; $C000+$C00=$CC00 = 52224.
           ;VIC bank
           lda CIA2_PORTA
           and #%11111100		; Bit 0 and 1 select Bank 3: $C000-$FFFF 
