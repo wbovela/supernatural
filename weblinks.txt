@@ -1,0 +1,6 @@
+Weblinks to Georg Rottensteiner's tutorial.
+
+http://www.gamedev.net/blog/949/entry-2249750-a-c64-game-in-several-steps-lots-of-em/
+http://www.gamedev.net/blog/949/entry-2249793-first-step-explained-in-detail/
+http://www.gamedev.net/blog/949/entry-2249831-a-c64-game-step-2/
+http://www.gamedev.net/blog/949/entry-2249887-a-c64-game-step-3/
