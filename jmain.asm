@@ -17,29 +17,21 @@ ZEROPAGE_POINTER_3      = $21
 ZEROPAGE_POINTER_4      = $23
 
 ;address of the screen buffer
-SCREEN_CHAR          = $CC00 ;52224
+SCREEN_CHAR          = 52224
 
 ;address of color ram
 SCREEN_COLOR            = $d800
 
 ;address of sprite pointers
-; The screen memory is a 1K block of data. Only 1.000 bytes are used
-; on screen. Leaving 24 bytes at the end of screen memory. The LAST
-; 8 bytes are sprite pointers. So starting from SCREEN_CHAR you add
-; 1016 bytes (24 bytes - 8 = 16) to get to sprite pointer base.
 SPRITE_POINTER_BASE     = SCREEN_CHAR + 1016
 
 ;number of sprites divided by four
 NUMBER_OF_SPRITES_DIV_4 = 1
 
 ;sprite number constants
-; Each sprite pointer is multiplied by 64 to give the memory location
-; of the sprite data, starting from VIC start ($C000 in our case).
-; Each sprite has (21*3=)63 bytes, with one wasted at the end.
 SPRITE_BASE             = 64
 
-SPRITE_PLAYER           = SPRITE_BASE + 0 ; 64 * 64 = $1000. $C000+$1000=$D000
-											; Characters $F000
+SPRITE_PLAYER           = SPRITE_BASE + 0
 
 
 ;this creates a basic start
@@ -50,8 +42,8 @@ SPRITE_PLAYER           = SPRITE_BASE + 0 ; 64 * 64 = $1000. $C000+$1000=$D000
 
           ;init sprite registers
           ;no visible sprites
-          lda #%00000000 ; 0
-          sta $D015 ; 53248 + 21
+          lda #0
+          sta 53248 + 21
           
           ;set charset
           lda #$3c
@@ -76,7 +68,7 @@ SPRITE_PLAYER           = SPRITE_BASE + 0 ; 64 * 64 = $1000. $C000+$1000=$D000
           
           ;only RAM
           ;to copy under the IO rom
-          lda #%00110000 ; NOTE! This makes ALL RAM, including $D000!!!!
+          lda #%00110000
           sta $01
           
           ;take source address from CHARSET
@@ -120,28 +112,173 @@ SPRITE_PLAYER           = SPRITE_BASE + 0 ; 64 * 64 = $1000. $C000+$1000=$D000
           sta SCREEN_COLOR + 2
           sta SCREEN_COLOR + 3
           sta SCREEN_COLOR + 4
-
-          ;set sprite 1 pos          
+          
+          
+          ;init sprite 1 pos          
           lda #100
-          sta $D000 ; x pos sprite 0 (53248)
-          sta $D001 ; y pos sprite 0 (53248 + 1)
+          sta 53248
+          sta 53248 + 1
+          sta SPRITE_POS_X
+          sta SPRITE_POS_Y
+          
           ;set sprite image
-          lda #SPRITE_PLAYER       ; value 64 -> 64*64=$1000. $C000+$1000=$D000
-          sta SPRITE_POINTER_BASE  ; sprite pointer sprite #0
+          lda #SPRITE_PLAYER
+          sta SPRITE_POINTER_BASE
+          
           ;enable sprite 1
-          lda #%00000001 ; 1
-          sta $D015      ; sprite enable register: 53248 + 21
+          lda #1
+          sta 53248 + 21
           
 
-          ;the main game loop
+;------------------------------------------------------------
+;the main game loop
+;------------------------------------------------------------
+
 GameLoop  
-          ;border flashing
-          inc 53280
-          
           jsr WaitFrame
 
+          jsr PlayerControl
+          
           jmp GameLoop          
           
+          
+;------------------------------------------------------------
+;check joystick (player control)
+;------------------------------------------------------------
+!zone PlayerControl
+PlayerControl
+          lda #$02
+          bit $dc00
+          bne .NotDownPressed
+          jsr PlayerMoveDown
+          
+.NotDownPressed          
+          lda #$01
+          bit $dc00
+          bne .NotUpPressed
+          jsr PlayerMoveUp
+          
+.NotUpPressed          
+          lda #$04
+          bit $dc00
+          bne .NotLeftPressed
+          jsr PlayerMoveLeft
+          
+.NotLeftPressed
+          lda #$08
+          bit $dc00
+          bne .NotRightPressed
+          jsr PlayerMoveRight
+
+.NotRightPressed
+          rts
+
+PlayerMoveLeft
+          ldx #0
+          jsr MoveSpriteLeft
+          rts
+          
+PlayerMoveRight
+          ldx #0
+          jsr MoveSpriteRight
+          rts
+
+PlayerMoveUp
+          ldx #0
+          jsr MoveSpriteUp
+          rts
+          
+PlayerMoveDown
+          ldx #0 
+          jsr MoveSpriteDown
+          rts
+
+;------------------------------------------------------------
+;Move Sprite Left
+;expect x as sprite index (0 to 7)
+;------------------------------------------------------------
+!zone MoveSpriteLeft
+MoveSpriteLeft
+          dec SPRITE_POS_X,x
+          bpl .NoChangeInExtendedFlag ; %11111111
+          
+          ; player sprite NEVER moves to x=0 at left of screen due to level design
+          ; sprite has moved left across x=255 limit
+          ; clear the appropriate bit in SPRITE_POS_X_EXTEND to 0
+          lda BIT_TABLE,x 
+          eor #$ff
+          and SPRITE_POS_X_EXTEND
+          sta SPRITE_POS_X_EXTEND
+          sta $D010 ; 53248 + 16 holds ninth bit for each sprite's x position 
+          
+.NoChangeInExtendedFlag     
+          txa ; move x to a
+          asl ; multiply a by two
+          tay ; move a to y. y now points to correct register for sprite's coordinate
+          
+          lda SPRITE_POS_X,x
+          sta 53248,y ; each sprite has x,y (two bytes)
+          rts  
+
+;------------------------------------------------------------
+;Move Sprite Right
+;expect x as sprite index (0 to 7)
+;------------------------------------------------------------
+!zone MoveSpriteRight
+MoveSpriteRight
+          inc SPRITE_POS_X,x
+          lda SPRITE_POS_X,x
+          bne .NoChangeInExtendedFlag
+          
+          ; player sprite NEVER moves to max screen position due to level design
+          ; sprite has moved right across x=255 limit
+          ; set appropriate bit in SPRITE_POS_X_EXTEND to 1
+          lda BIT_TABLE,x
+          ora SPRITE_POS_X_EXTEND
+          sta SPRITE_POS_X_EXTEND
+          sta 53248 + 16
+          
+.NoChangeInExtendedFlag     
+          txa
+          asl
+          tay
+          
+          lda SPRITE_POS_X,x
+          sta 53248,y
+          rts  
+
+;------------------------------------------------------------
+;Move Sprite Up
+;expect x as sprite index (0 to 7)
+;------------------------------------------------------------
+!zone MoveSpriteUp
+MoveSpriteUp
+          dec SPRITE_POS_Y,x
+          
+          txa
+          asl
+          tay
+          
+          lda SPRITE_POS_Y,x
+          sta 53249,y
+          rts  
+
+;------------------------------------------------------------
+;Move Sprite Down
+;expect x as sprite index (0 to 7)
+;------------------------------------------------------------
+!zone MoveSpriteDown
+MoveSpriteDown
+          inc SPRITE_POS_Y,x
+          
+          txa
+          asl ; %00000001 -> asl -> %00000010  
+          tay
+          
+          lda SPRITE_POS_Y,x
+          sta 53249,y   ; $D000 = x sprite 0, $D001 = y sprite 0, $D002=x, $D0003=y
+          rts  
+
           
 !zone WaitFrame
           ;wait for the raster to reach line $f8
@@ -218,7 +355,6 @@ CopySprites
           ldy #$00
           ldx #$00
           
-		  ; Copy to $D000, which is RAM at this moment in time.
           lda #00
           sta ZEROPAGE_POINTER_2
           lda #$d0
@@ -238,6 +374,21 @@ CopySprites
 
           rts
           
+;------------------------------------------------------------
+;game variables
+;------------------------------------------------------------
+
+SPRITE_POS_X
+          !byte 0,0,0,0,0,0,0,0
+SPRITE_POS_X_EXTEND
+          !byte 0
+SPRITE_POS_Y
+          !byte 0,0,0,0,0,0,0,0
+BIT_TABLE
+          !byte 1,2,4,8,16,32,64,128
+		  ; %00000001=1
+		  ; %00000010=2
+		  ; %00000100=4
 
 CHARSET
           !binary "j.chr"
