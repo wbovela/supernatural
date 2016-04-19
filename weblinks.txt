@@ -1,6 +1,178 @@
 Weblinks to Georg Rottensteiner's tutorial.
 
-http://www.gamedev.net/blog/949/entry-2249750-a-c64-game-in-several-steps-lots-of-em/
-http://www.gamedev.net/blog/949/entry-2249793-first-step-explained-in-detail/
-http://www.gamedev.net/blog/949/entry-2249831-a-c64-game-step-2/
-http://www.gamedev.net/blog/949/entry-2249887-a-c64-game-step-3/
+1:	http://www.gamedev.net/blog/949/entry-2249750-a-c64-game-in-several-steps-lots-of-em/
+1b:	http://www.gamedev.net/blog/949/entry-2249793-first-step-explained-in-detail/
+2:	http://www.gamedev.net/blog/949/entry-2249831-a-c64-game-step-2/
+3:	http://www.gamedev.net/blog/949/entry-2249887-a-c64-game-step-3/
+4:	http://www.gamedev.net/blog/949/entry-2249931-a-c64-game-step-4/
+5:	http://www.gamedev.net/blog/949/entry-2249996-a-c64-game-step-5/
+6:	http://www.gamedev.net/blog/949/entry-2250060-a-c64-game-step-6/
+7:	http://www.gamedev.net/blog/949/entry-2250107-a-c64-game-step-7/
+8:	http://www.gamedev.net/blog/949/entry-2250139-a-c64-game-step-8/
+9:	http://www.gamedev.net/blog/949/entry-2250176-a-c64-game-step-9/
+10:	http://www.gamedev.net/blog/949/entry-2250239-a-c64-game-step-10/
+11:	http://www.gamedev.net/blog/949/entry-2250279-a-c64-game-step-11/
+12:	http://www.gamedev.net/blog/949/entry-2250314-a-c64-game-step-12/
+13:	http://www.gamedev.net/blog/949/entry-2250370-a-c64-game-step-13/
+14:	http://www.gamedev.net/blog/949/entry-2250399-a-c64-game-step-14/
+15:	http://www.gamedev.net/blog/949/entry-2250423-a-c64-game-step-15/
+16:	http://www.gamedev.net/blog/949/entry-2250455-a-c64-game-step-16/
+17:	http://www.gamedev.net/blog/949/entry-2250478-step-17/
+18:	http://www.gamedev.net/blog/949/entry-2250498-a-c64-game-step-18/
+19:	http://www.gamedev.net/blog/949/entry-2250522-a-c64-game-step-19/
+20:	http://www.gamedev.net/blog/949/entry-2250549-a-c64-game-step-20/
+21:	http://www.gamedev.net/blog/949/entry-2250584-a-c64-game-step-21/
+22:	http://www.gamedev.net/blog/949/entry-2250609-a-c64-game-step-22/
+23:	http://www.gamedev.net/blog/949/entry-2250645-a-c64-game-step-23/
+24:	http://www.gamedev.net/blog/949/entry-2250680-a-c64-game-step-24/
+25:	http://www.gamedev.net/blog/949/entry-2250713-a-c64-game-step-25/
+26:	http://www.gamedev.net/blog/949/entry-2250748-a-c64-game-step-26/
+27:	http://www.gamedev.net/blog/949/entry-2250781-a-c64-game-step-27/
+28:	http://www.gamedev.net/blog/949/entry-2250805-a-c64-game-step-28/
+29:	http://www.gamedev.net/blog/949/entry-2250904-a-c64-game-step-29/
+30:	http://www.gamedev.net/blog/949/entry-2250939-a-c64-game-step-30/
+31:	http://www.gamedev.net/blog/949/entry-2250959-a-c64-game-step-31/
+32:	http://www.gamedev.net/blog/949/entry-2250974-a-c64-game-step-32/
+33:	http://www.gamedev.net/blog/949/entry-2252437-a-c64-game-step-33/
+34:	http://www.gamedev.net/blog/949/entry-2253358-a-c64-game-step-34/
+35:	http://www.gamedev.net/blog/949/entry-2253373-a-c64-game-step-35/
+36:	http://www.gamedev.net/blog/949/entry-2253914-a-c64-game-step-36/
+37:	http://www.gamedev.net/blog/949/entry-2253971-a-c64-game-step-37/
+38:	http://www.gamedev.net/blog/949/entry-2254039-a-c64-game-step-38/
+39:	http://www.gamedev.net/blog/949/entry-2254074-a-c64-game-step-39/
+40:	http://www.gamedev.net/blog/949/entry-2254096-a-c64-game-step-40/
+41:	http://www.gamedev.net/blog/949/entry-2254127-a-c64-game-step-41/
+42:	http://www.gamedev.net/blog/949/entry-2254214-a-c64-game-step-42/
+43:	http://www.gamedev.net/blog/949/entry-2254259-a-c64-game-step-43/
+44:	http://www.gamedev.net/blog/949/entry-2254291-a-c64-game-step-44/
+45:	http://www.gamedev.net/blog/949/entry-2254336-a-c64-game-step-45/
+46:	http://www.gamedev.net/blog/949/entry-2254362-a-c64-game-step-46/
+47:	http://www.gamedev.net/blog/949/entry-2254383-a-c64-game-step-47/
+48:	http://www.gamedev.net/blog/949/entry-2254415-a-c64-game-step-48/
+49:	http://www.gamedev.net/blog/949/entry-2254440-a-c64-game-step-49/
+50:	http://www.gamedev.net/blog/949/entry-2254466-a-c64-game-step-50/
+51:	http://www.gamedev.net/blog/949/entry-2254607-a-c64-game-step-51/
+52:	http://www.gamedev.net/blog/949/entry-2254631-a-c64-game-step-52/
+53:	http://www.gamedev.net/blog/949/entry-2254661-a-c64-game-step-53/
+54:	http://www.gamedev.net/blog/949/entry-2254691-a-c64-game-step-54/
+55:	http://www.gamedev.net/blog/949/entry-2254715-a-c64-game-step-55/
+56:	http://www.gamedev.net/blog/949/entry-2254727-a-c64-game-step-56/
+57:	http://www.gamedev.net/blog/949/entry-2254742-a-c64-game-step-57/
+58:	http://www.gamedev.net/blog/949/entry-2254760-a-c64-game-step-58/
+59:	http://www.gamedev.net/blog/949/entry-2254781-a-c64-game-step-59/
+60:	http://www.gamedev.net/blog/949/entry-2254824-a-c64-game-step-60/
+61:	http://www.gamedev.net/blog/949/entry-2254872-a-c64-game-step-61/
+62:	http://www.gamedev.net/blog/949/entry-2254906-a-c64-game-step-62/
+63:	http://www.gamedev.net/blog/949/entry-2254943-a-c64-game-step-63/
+64:	http://www.gamedev.net/blog/949/entry-2254966-a-c64-game-step-64/
+65:	http://www.gamedev.net/blog/949/entry-2255004-a-c64-game-step-65/
+66:	http://www.gamedev.net/blog/949/entry-2255044-a-c64-game-step-66/
+67:	http://www.gamedev.net/blog/949/entry-2255079-a-64-game-step-67/
+68:	http://www.gamedev.net/blog/949/entry-2255100-a-c64-game-step-68/
+69:	http://www.gamedev.net/blog/949/entry-2255127-a-c64-game-step-69/
+70:	http://www.gamedev.net/blog/949/entry-2255152-a-c64-game-step-70/
+71:	http://www.gamedev.net/blog/949/entry-2255183-a-c64-game-step-71/
+72:	http://www.gamedev.net/blog/949/entry-2255222-a-c64-game-step-72/
+73:	http://www.gamedev.net/blog/949/entry-2255246-a-c64-game-step-73/
+74:	http://www.gamedev.net/blog/949/entry-2255289-a-c64-game-step-74/
+75:	http://www.gamedev.net/blog/949/entry-2255342-a-c64-game-step-75/
+76:	http://www.gamedev.net/blog/949/entry-2255414-a-c64-game-step-76/
+77:	http://www.gamedev.net/blog/949/entry-2255437-a-c64-game-step-77/
+78:	http://www.gamedev.net/blog/949/entry-2255459-a-c64-game-step-78/
+79:	http://www.gamedev.net/blog/949/entry-2255493-a-c64-game-step-79/
+80:	http://www.gamedev.net/blog/949/entry-2255535-a-c64-game-step-80/
+81:	http://www.gamedev.net/blog/949/entry-2255647-a-c64-game-step-81/
+82:	http://www.gamedev.net/blog/949/entry-2255773-a-c64-game-step-82/
+83:	http://www.gamedev.net/blog/949/entry-2255793-a-c64-game-step-83/
+84:	http://www.gamedev.net/blog/949/entry-2255988-a-c64-game-step-84/
+85:	http://www.gamedev.net/blog/949/entry-2256021-a-c64-game-step-85/
+86:	http://www.gamedev.net/blog/949/entry-2256045-a-c64-game-step-86/
+87:	http://www.gamedev.net/blog/949/entry-2256063-a-c64-game-step-87/
+88:	http://www.gamedev.net/blog/949/entry-2256094-a-c64-game-step-88/
+89:	http://www.gamedev.net/blog/949/entry-2256125-a-c64-game-step-89/
+90:	http://www.gamedev.net/blog/949/entry-2256160-a-c64-game-step-90/
+91:	http://www.gamedev.net/blog/949/entry-2256188-a-c64-game-step-91/
+92:	http://www.gamedev.net/blog/949/entry-2256210-a-c64-game-step-92/
+93:	http://www.gamedev.net/blog/949/entry-2256236-a-c64-game-step-93/
+94:	http://www.gamedev.net/blog/949/entry-2256260-a-c64-game-step-94/
+95:	http://www.gamedev.net/blog/949/entry-2256297-a-c64-game-step-95/
+96:	http://www.gamedev.net/blog/949/entry-2256320-a-c64-game-step-96/
+97:	http://www.gamedev.net/blog/949/entry-2256337-a-c64-game-step-97/
+98:	http://www.gamedev.net/blog/949/entry-2256365-a-c64-game-step-98/
+99:	http://www.gamedev.net/blog/949/entry-2256390-a-c64-game-step-99/
+100:	http://www.gamedev.net/blog/949/entry-2256406-a-c64-game-final-step/
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
