@@ -383,7 +383,7 @@ BuildScreen
           sta ZEROPAGE_POINTER_3 + 1
 		  ; so, if A holds $CC (hi part of address first char on screen) and we add $0c
 		  ; we get $d8 for the hi part of the first address of the color ram. which is correct
-		  ; but why the enormous detour?
+		  ; This way the code is portable: SCREEN_CHAR can be changed, code will still work.
           
           tya								; save y (index into level data table)
           pha								; to the stack
@@ -396,7 +396,7 @@ BuildScreen
           sta (ZEROPAGE_POINTER_3),y		; color, add x-coordinate
           iny								; loop through the number of characters
           dec PARAM3						; PARAM3 is the number of chars to print
-          bne .NextChar						; WHY? don't we check for page boundaries here??
+          bne .NextChar						; page boundary check not required. 0>=y<=255
           
           jmp .NextLevelData
           
@@ -512,8 +512,8 @@ ClearPlayScreen
             sta $d800 + 440,x
             sta $d800 + 660,x
             inx
-            cpx #220
-            bne .ColorLoop
+            cpx #220							; the play screen is smaller than 
+            bne .ColorLoop						; 1000 bytes (1000-880=120 or 3 lines of 40)
             
             rts
 
