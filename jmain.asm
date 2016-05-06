@@ -2,6 +2,18 @@
 !to "jmain.prg",cbm
 
 ;define constants here
+VIC_SPRITE_X_POS        = $d000
+VIC_SPRITE_Y_POS        = $d001
+VIC_SPRITE_X_EXTEND     = $d010
+VIC_SPRITE_ENABLE       = $d015
+VIC_CONTROL             = $d016
+VIC_MEMORY_CONTROL      = $d018
+
+VIC_BACKGROUND_COLOR    = $d021
+VIC_CHARSET_MULTICOLOR_1= $d022
+VIC_CHARSET_MULTICOLOR_2= $d023
+
+CIA_PRA                 = $dd00
 
 ;placeholder for various temp parameters
 PARAM1                  = $03
@@ -33,6 +45,10 @@ SPRITE_BASE             = 64
 
 SPRITE_PLAYER           = SPRITE_BASE + 0
 
+;offset from calculated char pos to true sprite pos
+SPRITE_CENTER_OFFSET_X  = 8
+SPRITE_CENTER_OFFSET_Y  = 11
+
 
 ;level data constants
 LD_END                  = 0
@@ -48,16 +64,16 @@ LD_LINE_V               = 2
           ;init sprite registers
           ;no visible sprites
           lda #0
-          sta 53248 + 21
+          sta VIC_SPRITE_ENABLE
           
           ;set charset
           lda #$3c
-          sta 53272
+          sta VIC_MEMORY_CONTROL
 
           ;VIC bank
-          lda 56576
+          lda CIA_PRA
           and #$fc
-          sta 56576
+          sta CIA_PRA
 
           ;----------------------------------
           ;copy charset and sprites to target          
@@ -100,30 +116,42 @@ LD_LINE_V               = 2
           cli
           
           ;background black
-          lda #0			
-          sta 53281
+          lda #0
+          sta VIC_BACKGROUND_COLOR
           
           ;set charset multi colors
           lda #12
-          sta 53282
+          sta VIC_CHARSET_MULTICOLOR_1
           lda #8
-          sta 53283
+          sta VIC_CHARSET_MULTICOLOR_2
           ;enable multi color charset
-          lda 53270
+          lda VIC_CONTROL
           ora #$10
-          sta 53270
+          sta VIC_CONTROL
           
           ;setup level
-          lda #0			; start with level 0
-          sta LEVEL_NR		; this is a global variable
-          jsr BuildScreen	; build this screen
+          lda #0
+          sta LEVEL_NR
+          jsr BuildScreen
+          
+          ;set sprite flags
+          lda #0
+          sta VIC_SPRITE_X_EXTEND
           
           ;init sprite 1 pos
+          lda #5
+          sta PARAM1
+          lda #4
+          sta PARAM2
+          ldx #0
+          
+          jsr CalcSpritePosFromCharPos
+          
           lda #100
-          sta 53248
-          sta 53248 + 1
-          sta SPRITE_POS_X
-          sta SPRITE_POS_Y
+          ;sta VIC_SPRITE_X_POS
+          ;sta VIC_SPRITE_Y_POS
+          ;sta SPRITE_POS_X
+          ;sta SPRITE_POS_Y
           
           ;set sprite image
           lda #SPRITE_PLAYER
@@ -131,7 +159,7 @@ LD_LINE_V               = 2
           
           ;enable sprite 1
           lda #1
-          sta 53248 + 21
+          sta VIC_SPRITE_ENABLE
           
 
 ;------------------------------------------------------------
@@ -177,25 +205,282 @@ PlayerControl
 .NotRightPressed
           rts
 
+;------------------------------------------------------------
+;PlayerMoveLeft
+;------------------------------------------------------------
+!zone PlayerMoveLeft
 PlayerMoveLeft
           ldx #0
+          
+          lda SPRITE_CHAR_POS_X_DELTA
+          beq .CheckCanMoveLeft
+          
+.CanMoveLeft
+          dec SPRITE_CHAR_POS_X_DELTA
+          
           jsr MoveSpriteLeft
           rts
           
-PlayerMoveRight
-          ldx #0
-          jsr MoveSpriteRight
+.CheckCanMoveLeft
+          lda SPRITE_CHAR_POS_Y_DELTA
+          beq .NoThirdCharCheckNeeded
+          
+          ldy SPRITE_CHAR_POS_Y
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+          sta ZEROPAGE_POINTER_1
+          lda SCREEN_LINE_OFFSET_TABLE_HI,y
+          sta ZEROPAGE_POINTER_1 + 1
+
+          lda SPRITE_CHAR_POS_X
+          clc
+          adc #39
+          tay
+          
+          lda (ZEROPAGE_POINTER_1),y
+          
+          jsr IsCharBlocking
+          bne .BlockedLeft
+          
+.NoThirdCharCheckNeeded          
+          ldy SPRITE_CHAR_POS_Y
+          dey
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+          sta ZEROPAGE_POINTER_1
+          lda SCREEN_LINE_OFFSET_TABLE_HI,y
+          sta ZEROPAGE_POINTER_1 + 1
+          
+          ldy SPRITE_CHAR_POS_X
+          dey
+          
+          lda (ZEROPAGE_POINTER_1),y
+          
+          jsr IsCharBlocking
+          bne .BlockedLeft
+          
+          tya
+          clc
+          adc #40
+          tay
+          lda (ZEROPAGE_POINTER_1),y
+          jsr IsCharBlocking
+          bne .BlockedLeft
+          
+          
+          lda #8
+          sta SPRITE_CHAR_POS_X_DELTA
+          dec SPRITE_CHAR_POS_X
+          jmp .CanMoveLeft
+          
+.BlockedLeft
           rts
 
+          
+;------------------------------------------------------------
+;PlayerMoveRight
+;------------------------------------------------------------
+!zone PlayerMoveRight
+PlayerMoveRight
+          ldx #0
+          
+          lda SPRITE_CHAR_POS_X_DELTA
+          beq .CheckCanMoveRight
+          
+.CanMoveRight
+          inc SPRITE_CHAR_POS_X_DELTA
+          
+          lda SPRITE_CHAR_POS_X_DELTA
+          cmp #8
+          bne .NoCharStep
+          
+          lda #0
+          sta SPRITE_CHAR_POS_X_DELTA
+          inc SPRITE_CHAR_POS_X
+          
+.NoCharStep          
+          jsr MoveSpriteRight
+          rts
+          
+.CheckCanMoveRight
+          lda SPRITE_CHAR_POS_Y_DELTA
+          beq .NoThirdCharCheckNeeded
+          
+          ldy SPRITE_CHAR_POS_Y
+          iny
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+          sta ZEROPAGE_POINTER_1
+          lda SCREEN_LINE_OFFSET_TABLE_HI,y
+          sta ZEROPAGE_POINTER_1 + 1
+
+          ldy SPRITE_CHAR_POS_X
+          iny
+          
+          lda (ZEROPAGE_POINTER_1),y
+          
+          jsr IsCharBlocking
+          bne .BlockedRight
+          
+.NoThirdCharCheckNeeded          
+
+          ldy SPRITE_CHAR_POS_Y
+          dey
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+          sta ZEROPAGE_POINTER_1
+          lda SCREEN_LINE_OFFSET_TABLE_HI,y
+          sta ZEROPAGE_POINTER_1 + 1
+          
+          ldy SPRITE_CHAR_POS_X
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          
+          jsr IsCharBlocking
+          bne .BlockedRight
+          
+          tya
+          clc
+          adc #40
+          tay
+          lda (ZEROPAGE_POINTER_1),y
+          jsr IsCharBlocking
+          bne .BlockedRight
+          
+          jmp .CanMoveRight
+          
+.BlockedRight
+          rts
+          
+
+;------------------------------------------------------------
+;PlayerMoveUp
+;------------------------------------------------------------
+!zone PlayerMoveUp
 PlayerMoveUp
           ldx #0
+          
+          lda SPRITE_CHAR_POS_Y_DELTA
+          beq .CheckCanMoveUp
+          
+.CanMoveUp
+          dec SPRITE_CHAR_POS_Y_DELTA
+          
+          lda SPRITE_CHAR_POS_Y_DELTA
+          cmp #$ff
+          bne .NoCharStep
+          
+          dec SPRITE_CHAR_POS_Y
+          lda #7
+          sta SPRITE_CHAR_POS_Y_DELTA
+          
+.NoCharStep          
           jsr MoveSpriteUp
           rts
           
+.CheckCanMoveUp
+          lda SPRITE_CHAR_POS_X_DELTA
+          beq .NoSecondCharCheckNeeded
+          
+          ldy SPRITE_CHAR_POS_Y
+          dey
+          dey
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+          sta ZEROPAGE_POINTER_1
+          lda SCREEN_LINE_OFFSET_TABLE_HI,y
+          sta ZEROPAGE_POINTER_1 + 1
+
+          ldy SPRITE_CHAR_POS_X
+          iny
+          
+          lda (ZEROPAGE_POINTER_1),y
+          
+          jsr IsCharBlocking
+          bne .BlockedUp
+          
+.NoSecondCharCheckNeeded          
+
+          ldy SPRITE_CHAR_POS_Y
+          dey
+          dey
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+          sta ZEROPAGE_POINTER_1
+          lda SCREEN_LINE_OFFSET_TABLE_HI,y
+          sta ZEROPAGE_POINTER_1 + 1
+          
+          ldy SPRITE_CHAR_POS_X
+          
+          lda (ZEROPAGE_POINTER_1),y
+          
+          jsr IsCharBlocking
+          bne .BlockedUp
+          
+          jmp .CanMoveUp
+          
+.BlockedUp
+          rts
+          
+          
+;------------------------------------------------------------
+;PlayerMoveDown
+;------------------------------------------------------------
+!zone PlayerMoveDown
 PlayerMoveDown
           ldx #0
+          
+          lda SPRITE_CHAR_POS_Y_DELTA
+          beq .CheckCanMoveDown
+          
+.CanMoveDown
+          inc SPRITE_CHAR_POS_Y_DELTA
+          
+          lda SPRITE_CHAR_POS_Y_DELTA
+          cmp #8
+          bne .NoCharStep
+          
+          lda #0
+          sta SPRITE_CHAR_POS_Y_DELTA
+          inc SPRITE_CHAR_POS_Y
+          
+.NoCharStep          
           jsr MoveSpriteDown
           rts
+          
+.CheckCanMoveDown
+          lda SPRITE_CHAR_POS_X_DELTA
+          beq .NoSecondCharCheckNeeded
+          
+          ldy SPRITE_CHAR_POS_Y
+          iny
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+          sta ZEROPAGE_POINTER_1
+          lda SCREEN_LINE_OFFSET_TABLE_HI,y
+          sta ZEROPAGE_POINTER_1 + 1
+
+          ldy SPRITE_CHAR_POS_X
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          
+          jsr IsCharBlocking
+          bne .BlockedDown
+          
+.NoSecondCharCheckNeeded          
+
+          ldy SPRITE_CHAR_POS_Y
+          iny
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+          sta ZEROPAGE_POINTER_1
+          lda SCREEN_LINE_OFFSET_TABLE_HI,y
+          sta ZEROPAGE_POINTER_1 + 1
+          
+          ldy SPRITE_CHAR_POS_X
+          
+          lda (ZEROPAGE_POINTER_1),y
+          
+          jsr IsCharBlocking
+          bne .BlockedDown
+          
+          jmp .CanMoveDown
+          
+.BlockedDown
+          rts
+          
 
 ;------------------------------------------------------------
 ;Move Sprite Left
@@ -210,7 +495,7 @@ MoveSpriteLeft
           eor #$ff
           and SPRITE_POS_X_EXTEND
           sta SPRITE_POS_X_EXTEND
-          sta 53248 + 16
+          sta VIC_SPRITE_X_EXTEND
           
 .NoChangeInExtendedFlag     
           txa
@@ -218,7 +503,7 @@ MoveSpriteLeft
           tay
           
           lda SPRITE_POS_X,x
-          sta 53248,y
+          sta VIC_SPRITE_X_POS,y
           rts  
 
 ;------------------------------------------------------------
@@ -234,7 +519,7 @@ MoveSpriteRight
           lda BIT_TABLE,x
           ora SPRITE_POS_X_EXTEND
           sta SPRITE_POS_X_EXTEND
-          sta 53248 + 16
+          sta VIC_SPRITE_X_EXTEND
           
 .NoChangeInExtendedFlag     
           txa
@@ -242,7 +527,7 @@ MoveSpriteRight
           tay
           
           lda SPRITE_POS_X,x
-          sta 53248,y
+          sta VIC_SPRITE_X_POS,y
           rts  
 
 ;------------------------------------------------------------
@@ -279,124 +564,194 @@ MoveSpriteDown
 
 
 ;------------------------------------------------------------
+;IsCharBlocking
+;checks if a char is blocking
+;PARAM1 = char_pos_x
+;PARAM2 = char_pos_y
+;returns 1 for blocking, 0 for not blocking
+;------------------------------------------------------------
+!zone IsCharBlocking
+IsCharBlocking
+          cmp #128
+          bpl .Blocking
+          
+          lda #0
+          rts
+          
+.Blocking
+          lda #1
+          rts
+
+
+;------------------------------------------------------------
+;CalcSpritePosFromCharPos
+;calculates the real sprite coordinates from screen char pos
+;PARAM1 = char_pos_x
+;PARAM2 = char_pos_y
+;X      = sprite index
+;------------------------------------------------------------
+!zone CalcSpritePosFromCharPos    
+CalcSpritePosFromCharPos
+
+          ;offset screen to border 24,50
+          lda BIT_TABLE,x
+          eor #$ff
+          and SPRITE_POS_X_EXTEND
+          sta SPRITE_POS_X_EXTEND
+          sta VIC_SPRITE_X_EXTEND
+          
+          ;need extended x bit?
+          lda PARAM1
+          sta SPRITE_CHAR_POS_X,x
+          cmp #30
+          bcc .NoXBit
+          
+          lda BIT_TABLE,x
+          ora SPRITE_POS_X_EXTEND
+          sta SPRITE_POS_X_EXTEND
+          sta VIC_SPRITE_X_EXTEND
+          
+.NoXBit   
+          ;calculate sprite positions (offset from border)
+          txa
+          asl
+          tay
+          
+          lda PARAM1
+          asl
+          asl
+          asl
+          clc
+          adc #( 24 - SPRITE_CENTER_OFFSET_X )
+          sta SPRITE_POS_X,x
+          sta VIC_SPRITE_X_POS,y
+          
+          lda PARAM2
+          sta SPRITE_CHAR_POS_Y,x
+          asl
+          asl
+          asl
+          clc
+          adc #( 50 - SPRITE_CENTER_OFFSET_Y )
+          sta SPRITE_POS_Y,x
+          sta 53249,y
+          
+          lda #0
+          sta SPRITE_CHAR_POS_X_DELTA,x
+          sta SPRITE_CHAR_POS_Y_DELTA,x
+          rts
+
+;------------------------------------------------------------
 ;BuildScreen
 ;creates a screen from level data
 ;------------------------------------------------------------
 !zone BuildScreen
 BuildScreen
-          lda #0						; a = character (this must be defined as empty)
-          ldy #6						; y = color (6 = green)
+          lda #0
+          ldy #6
           jsr ClearPlayScreen
 
           ;get pointer to real level data from table
-          ldx LEVEL_NR					; this is the global level nr
-          lda SCREEN_DATA_TABLE,x		; get the low byte of the address of the data
-          sta ZEROPAGE_POINTER_1		; store in ZP pointer 1
-          lda SCREEN_DATA_TABLE + 1,x 	; same for the high part
+          ldx LEVEL_NR
+          lda SCREEN_DATA_TABLE,x
+          sta ZEROPAGE_POINTER_1
+          lda SCREEN_DATA_TABLE + 1,x
           sta ZEROPAGE_POINTER_1 + 1
           
-          jsr .BuildLevel				; then build the level
+          jsr .BuildLevel
 
           ;get pointer to real level data from table
-          lda #<LEVEL_BORDER_DATA		; get the low byte of the address of level border data
-          sta ZEROPAGE_POINTER_1		; but do it directly because it's always the same
+          lda #<LEVEL_BORDER_DATA
+          sta ZEROPAGE_POINTER_1
           lda #>LEVEL_BORDER_DATA
           sta ZEROPAGE_POINTER_1 + 1
           
-          jsr .BuildLevel				; build level means push it to the screen...
-          rts							; and we're done
+          jsr .BuildLevel
+          rts
           
 .BuildLevel
           ;work through data
-          ldy #255						; whatever we do, do it 256 times. 
+          ldy #255
           
 .LevelDataLoop
-          iny							; on first pass y goes to 0 here.
-          								; levels are coded to save space. We 'decode' them.
-          lda (ZEROPAGE_POINTER_1),y 	; get the data from zp_1 indexed by y
-          cmp #LD_END					; are we at the end byte yet? must be marked!
-          beq .LevelComplete			; we're done
-          cmp #LD_LINE_H				; drawing a horizontal line?
-          beq .LineH					; then do that
-          cmp #LD_LINE_V				; a vertical line?
-          beq .LineV					; then do that
+          iny
+          
+          lda (ZEROPAGE_POINTER_1),y
+          cmp #LD_END
+          beq .LevelComplete
+          cmp #LD_LINE_H
+          beq .LineH
+          cmp #LD_LINE_V
+          beq .LineV
           
 .LevelComplete          
-          rts							; anything else means we're done
+          rts
           
 .NextLevelData
-          pla							; a becomes the index into the level data table
+          pla
           
           ;adjust pointers so we're able to access more 
           ;than 256 bytes of level data
           clc
-          adc #1						; increase the index by 1
-          adc ZEROPAGE_POINTER_1		; ZP1 is the level data. add the low byte
-          sta ZEROPAGE_POINTER_1		; store it back into ZP1
-          lda ZEROPAGE_POINTER_1 + 1	; get the high byte
-          adc #0						; add (with carry!) so a + 0 + Carry
-          sta ZEROPAGE_POINTER_1 + 1	; and store the result in the high part of ZP1
-          ldy #255						; get y ready at $ff (like before) and start over
+          adc #1
+          adc ZEROPAGE_POINTER_1
+          sta ZEROPAGE_POINTER_1
+          lda ZEROPAGE_POINTER_1 + 1
+          adc #0
+          sta ZEROPAGE_POINTER_1 + 1
+          ldy #255
           
           jmp .LevelDataLoop
 
-.LineH									; this draws a horizontal line
+.LineH
           ;X pos
-          iny							; increase the index
-          lda (ZEROPAGE_POINTER_1),y	; this address holds the x coordinate
-          sta PARAM1 					; PARAM1 is x coordinate
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta PARAM1 
           
           ;Y pos
-          iny							; next item in data is Y pos
-          lda (ZEROPAGE_POINTER_1),y	; get it from the table
-          sta PARAM2					; PARAM2 is y coordinate
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta PARAM2
 
           ;width
-          iny							; next item in datatable
-          lda (ZEROPAGE_POINTER_1),y	; how wide is the horizontal line?
-          sta PARAM3					; store it in PARAM3
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta PARAM3
           
           ;char
-          iny							; next item in datatable
-          lda (ZEROPAGE_POINTER_1),y	; which character are we drawing?
-          sta PARAM4					; PARAM4 is the character
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta PARAM4
           
           ;color
-          iny							; next item is color
-          lda (ZEROPAGE_POINTER_1),y	; get it
-          sta PARAM5					; PARAM5 is color
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta PARAM5
           
           ;store target pointers to screen and color ram
-          ldx PARAM2						; PARAM2 is the Y position
-          lda SCREEN_LINE_OFFSET_TABLE_LO,x	; low byte of address first char on this line
-          sta ZEROPAGE_POINTER_2			; store in ZP2 and ZP3
+          ldx PARAM2
+          lda SCREEN_LINE_OFFSET_TABLE_LO,x
+          sta ZEROPAGE_POINTER_2
           sta ZEROPAGE_POINTER_3
-          lda SCREEN_LINE_OFFSET_TABLE_HI,x	; high byte of address first char on this line
-          sta ZEROPAGE_POINTER_2 + 1		; store in ZP2
-          clc								; clear the carry
-          adc #( ( SCREEN_COLOR - SCREEN_CHAR ) & 0xff00 ) >> 8 ; ???
-		  ; the result is always a fixed number: 
-		  ; (($D800-$CC00)&0XFF00)>>8
-		  ; ($C00 & 0XFF00) >> 8
-		  ; $C00 >> 8
-		  ; $0C ... always the same, why?
+          lda SCREEN_LINE_OFFSET_TABLE_HI,x
+          sta ZEROPAGE_POINTER_2 + 1
+          clc
+          adc #( ( SCREEN_COLOR - SCREEN_CHAR ) & 0xff00 ) >> 8
           sta ZEROPAGE_POINTER_3 + 1
-		  ; so, if A holds $CC (hi part of address first char on screen) and we add $0c
-		  ; we get $d8 for the hi part of the first address of the color ram. which is correct
-		  ; This way the code is portable: SCREEN_CHAR can be changed, code will still work.
           
-          tya								; save y (index into level data table)
-          pha								; to the stack
+          tya
+          pha
           
-          ldy PARAM1						; make y the x coordinate
+          ldy PARAM1
 .NextChar          
-          lda PARAM4						; PARAM4 is the character
-          sta (ZEROPAGE_POINTER_2),y		; screenline, add x-coordinate
-          lda PARAM5						; PARAM5 is the color
-          sta (ZEROPAGE_POINTER_3),y		; color, add x-coordinate
-          iny								; loop through the number of characters
-          dec PARAM3						; PARAM3 is the number of chars to print
-          bne .NextChar						; page boundary check not required. 0>=y<=255
+          lda PARAM4
+          sta (ZEROPAGE_POINTER_2),y
+          lda PARAM5
+          sta (ZEROPAGE_POINTER_3),y
+          iny
+          dec PARAM3
+          bne .NextChar
           
           jmp .NextLevelData
           
@@ -440,28 +795,28 @@ BuildScreen
           tya
           pha
           
-          ldy PARAM1								; x-position
+          ldy PARAM1
 .NextCharV         
-          lda PARAM4								; char
+          lda PARAM4
           sta (ZEROPAGE_POINTER_2),y
-          lda PARAM5								; color
+          lda PARAM5
           sta (ZEROPAGE_POINTER_3),y
           
           ;adjust pointer
-          lda ZEROPAGE_POINTER_2					; vertical line so 
-          clc										; add 40 
+          lda ZEROPAGE_POINTER_2
+          clc
           adc #40
-          sta ZEROPAGE_POINTER_2					; this takes care of the low bytes
-          sta ZEROPAGE_POINTER_3					; of color and character pointers
-          lda ZEROPAGE_POINTER_2 + 1				; now the high bytes
-          adc #0									; add with carry again
-          sta ZEROPAGE_POINTER_2 + 1				; for when we cross a page boundary
-          clc										; do the same for the color pointer
+          sta ZEROPAGE_POINTER_2
+          sta ZEROPAGE_POINTER_3
+          lda ZEROPAGE_POINTER_2 + 1
+          adc #0
+          sta ZEROPAGE_POINTER_2 + 1
+          clc
           adc #( ( SCREEN_COLOR - SCREEN_CHAR ) & 0xff00 ) >> 8
-          sta ZEROPAGE_POINTER_3 + 1				; this works like explained before (detour)
+          sta ZEROPAGE_POINTER_3 + 1
           
-          dec PARAM3								; do this for the amount of characters
-          bne .NextCharV							; required.
+          dec PARAM3
+          bne .NextCharV
           
           jmp .NextLevelData
           
@@ -512,8 +867,8 @@ ClearPlayScreen
             sta $d800 + 440,x
             sta $d800 + 660,x
             inx
-            cpx #220							; the play screen is smaller than 
-            bne .ColorLoop						; 1000 bytes (1000-880=120 or 3 lines of 40)
+            cpx #220
+            bne .ColorLoop
             
             rts
 
@@ -596,9 +951,10 @@ CopySprites
 ;screen data
 ;------------------------------------------------------------
 SCREEN_DATA_TABLE
-          !word LEVEL_2
+          !word LEVEL_1
           !word 0
-                    
+          
+          
 LEVEL_1
           !byte LD_LINE_H,5,5,10,128,9
           !byte LD_LINE_H,30,12,9,129,9
@@ -606,17 +962,12 @@ LEVEL_1
           !byte LD_LINE_V,7,6,4,128,9
           !byte LD_END
 
-LEVEL_2
-          !byte LD_LINE_H,1,5,30,128,9
-          !byte LD_LINE_H,1,6,30,128,9
-          !byte LD_LINE_H,1,7,30,128,9		  
-          !byte LD_END
-		  
+
 LEVEL_BORDER_DATA
-          !byte LD_LINE_H,0,0,40,129,9
+          !byte LD_LINE_H,0,0,40,128,9
           !byte LD_LINE_H,1,22,38,129,9
           !byte LD_LINE_V,0,1,22,128,9
-          !byte LD_LINE_V,39,1,22,128,9
+          !byte LD_LINE_V,39,1,22,129,9
           !byte LD_END
 
 ;------------------------------------------------------------
@@ -629,6 +980,14 @@ SPRITE_POS_X
           !byte 0,0,0,0,0,0,0,0
 SPRITE_POS_X_EXTEND
           !byte 0
+SPRITE_CHAR_POS_X
+          !byte 0,0,0,0,0,0,0,0
+SPRITE_CHAR_POS_X_DELTA
+          !byte 0,0,0,0,0,0,0,0
+SPRITE_CHAR_POS_Y
+          !byte 0,0,0,0,0,0,0,0
+SPRITE_CHAR_POS_Y_DELTA
+          !byte 0,0,0,0,0,0,0,0
 SPRITE_POS_Y
           !byte 0,0,0,0,0,0,0,0
 BIT_TABLE
