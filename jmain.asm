@@ -139,11 +139,11 @@ LD_LINE_V               = 2
           sta VIC_SPRITE_X_EXTEND
           
           ;init sprite 1 pos
-          lda #5
-          sta PARAM1
-          lda #4
-          sta PARAM2
-          ldx #0
+          lda #1
+          sta PARAM1						; char x
+          lda #2
+          sta PARAM2						; char y
+          ldx #0							; x = sprite index
           
           jsr CalcSpritePosFromCharPos
           
@@ -212,52 +212,52 @@ PlayerControl
 PlayerMoveLeft
           ldx #0
           
-          lda SPRITE_CHAR_POS_X_DELTA
-          beq .CheckCanMoveLeft
-          
+          lda SPRITE_CHAR_POS_X_DELTA				; sprite 0, always player (tricky)
+          beq .CheckCanMoveLeft						; is the sprite at a character edge?
+          											; we only check when we're at an edge
 .CanMoveLeft
-          dec SPRITE_CHAR_POS_X_DELTA
+          dec SPRITE_CHAR_POS_X_DELTA				; decrease in-character delta
           
-          jsr MoveSpriteLeft
+          jsr MoveSpriteLeft						; and move the sprite left
           rts
           
 .CheckCanMoveLeft
-          lda SPRITE_CHAR_POS_Y_DELTA
-          beq .NoThirdCharCheckNeeded
-          
-          ldy SPRITE_CHAR_POS_Y
-          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+          lda SPRITE_CHAR_POS_Y_DELTA				; get the Y in-char delta
+          beq .NoThirdCharCheckNeeded				; are we at a vertical edge?
+          											; if so, check the bottom left first
+          ldy SPRITE_CHAR_POS_Y						; get the char y pos
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y			; get the address of char 1 of line
           sta ZEROPAGE_POINTER_1
           lda SCREEN_LINE_OFFSET_TABLE_HI,y
           sta ZEROPAGE_POINTER_1 + 1
 
-          lda SPRITE_CHAR_POS_X
-          clc
-          adc #39
+          lda SPRITE_CHAR_POS_X						; get the char x pos
+          clc										; add 39 (down and left)
+          adc #39									; check at our feet
           tay
           
-          lda (ZEROPAGE_POINTER_1),y
+          lda (ZEROPAGE_POINTER_1),y				; get the char there
           
-          jsr IsCharBlocking
+          jsr IsCharBlocking						; is it blocking?
           bne .BlockedLeft
           
-.NoThirdCharCheckNeeded          
-          ldy SPRITE_CHAR_POS_Y
-          dey
-          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+.NoThirdCharCheckNeeded          					; either from feet or middle UP
+          ldy SPRITE_CHAR_POS_Y						; get the char y pos
+          dey										; decrease (1 line up)
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y			; get the address of char 1 of line
           sta ZEROPAGE_POINTER_1
           lda SCREEN_LINE_OFFSET_TABLE_HI,y
           sta ZEROPAGE_POINTER_1 + 1
           
-          ldy SPRITE_CHAR_POS_X
-          dey
+          ldy SPRITE_CHAR_POS_X						; get the char x pos
+          dey										; decrease (1 left)
           
-          lda (ZEROPAGE_POINTER_1),y
+          lda (ZEROPAGE_POINTER_1),y				; get the character there
           
-          jsr IsCharBlocking
+          jsr IsCharBlocking						; is it blocking?
           bne .BlockedLeft
           
-          tya
+          tya										; and then 1 line down
           clc
           adc #40
           tay
@@ -266,10 +266,10 @@ PlayerMoveLeft
           bne .BlockedLeft
           
           
-          lda #8
-          sta SPRITE_CHAR_POS_X_DELTA
-          dec SPRITE_CHAR_POS_X
-          jmp .CanMoveLeft
+          lda #8									; we were always flush
+          sta SPRITE_CHAR_POS_X_DELTA				; so set delta to 8
+          dec SPRITE_CHAR_POS_X						; decrease x position
+          jmp .CanMoveLeft							; can move left will dec delta to 7
           
 .BlockedLeft
           rts
@@ -280,64 +280,68 @@ PlayerMoveLeft
 ;------------------------------------------------------------
 !zone PlayerMoveRight
 PlayerMoveRight
-          ldx #0
+          ldx #0								; init x to 0 (sprite#?)
           
-          lda SPRITE_CHAR_POS_X_DELTA
-          beq .CheckCanMoveRight
+          lda SPRITE_CHAR_POS_X_DELTA			; get the player x delta
+          beq .CheckCanMoveRight				; if we're flush then check
           
-.CanMoveRight
-          inc SPRITE_CHAR_POS_X_DELTA
+.CanMoveRight									; not at a char edge
+          inc SPRITE_CHAR_POS_X_DELTA			; inc x delta by 1 pixel
           
-          lda SPRITE_CHAR_POS_X_DELTA
-          cmp #8
-          bne .NoCharStep
+          lda SPRITE_CHAR_POS_X_DELTA			; load it
+          cmp #8								; full char now?
+          bne .NoCharStep						; no, then nothing
           
-          lda #0
-          sta SPRITE_CHAR_POS_X_DELTA
-          inc SPRITE_CHAR_POS_X
+          lda #0								; yes, set x delta to 0
+          sta SPRITE_CHAR_POS_X_DELTA			; store
+          inc SPRITE_CHAR_POS_X					; inc char x position
           
 .NoCharStep          
-          jsr MoveSpriteRight
+          jsr MoveSpriteRight					; move the sprite
           rts
           
 .CheckCanMoveRight
-          lda SPRITE_CHAR_POS_Y_DELTA
-          beq .NoThirdCharCheckNeeded
+          lda SPRITE_CHAR_POS_Y_DELTA			; first get the y delta
+          beq .NoThirdCharCheckNeeded			; third char check?
           
-          ldy SPRITE_CHAR_POS_Y
-          iny
-          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+		  ; the code below appears to check what is blocking our feet/
+		  ; lower part of the hit box. One below and to the right.
+          ldy SPRITE_CHAR_POS_Y					; get char y coordinate
+          iny									; increase it (next line)
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y		; get the address
           sta ZEROPAGE_POINTER_1
           lda SCREEN_LINE_OFFSET_TABLE_HI,y
           sta ZEROPAGE_POINTER_1 + 1
 
-          ldy SPRITE_CHAR_POS_X
-          iny
+          ldy SPRITE_CHAR_POS_X					; get char x coordinate
+          iny									; increase it (right)
           
-          lda (ZEROPAGE_POINTER_1),y
+          lda (ZEROPAGE_POINTER_1),y			; get the character there
           
-          jsr IsCharBlocking
+          jsr IsCharBlocking					; does it block?
           bne .BlockedRight
           
 .NoThirdCharCheckNeeded          
 
-          ldy SPRITE_CHAR_POS_Y
-          dey
-          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+		  ; the code below checks if the char to our right and above
+		  ; blocks or not
+          ldy SPRITE_CHAR_POS_Y					; get our char y coordinate
+          dey									; decrease it (1 line up)
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y		; get the screen address
           sta ZEROPAGE_POINTER_1
           lda SCREEN_LINE_OFFSET_TABLE_HI,y
           sta ZEROPAGE_POINTER_1 + 1
           
-          ldy SPRITE_CHAR_POS_X
-          iny
-          lda (ZEROPAGE_POINTER_1),y
+          ldy SPRITE_CHAR_POS_X					; get the char x coordinate
+          iny									; increase it (up & right)
+          lda (ZEROPAGE_POINTER_1),y			; get the character there
           
-          jsr IsCharBlocking
+          jsr IsCharBlocking					; does it block?
           bne .BlockedRight
           
-          tya
+          tya									; y was our x position
           clc
-          adc #40
+          adc #40								; add 40 (right & 1 line down)
           tay
           lda (ZEROPAGE_POINTER_1),y
           jsr IsCharBlocking
@@ -594,39 +598,41 @@ IsCharBlocking
 CalcSpritePosFromCharPos
 
           ;offset screen to border 24,50
-          lda BIT_TABLE,x
-          eor #$ff
+		  ; the first visible dot is at x=24, y=50
+          lda BIT_TABLE,x						; first clear the extend bit
+          eor #$ff								; for this sprite.
           and SPRITE_POS_X_EXTEND
           sta SPRITE_POS_X_EXTEND
-          sta VIC_SPRITE_X_EXTEND
+          sta VIC_SPRITE_X_EXTEND				; extend beyond x=$ff bit per sprite
           
           ;need extended x bit?
-          lda PARAM1
-          sta SPRITE_CHAR_POS_X,x
-          cmp #30
-          bcc .NoXBit
+          lda PARAM1							; take the x pos (char)
+          sta SPRITE_CHAR_POS_X,x				; store it in our table
+          cmp #30								; compare to 30
+          bcc .NoXBit							; smaller? no extend, otherwise yes
           
-          lda BIT_TABLE,x
-          ora SPRITE_POS_X_EXTEND
-          sta SPRITE_POS_X_EXTEND
-          sta VIC_SPRITE_X_EXTEND
+          lda BIT_TABLE,x						; get the correct bit value (again)
+          ora SPRITE_POS_X_EXTEND				; or it with the current value
+          sta SPRITE_POS_X_EXTEND				; and store it in our table
+          sta VIC_SPRITE_X_EXTEND				; tell VIC2 as well
           
 .NoXBit   
           ;calculate sprite positions (offset from border)
-          txa
-          asl
-          tay
+          txa										; sprite index * 2 
+          asl										; for the correct address to store
+          tay										; sprite coordinate in
           
-          lda PARAM1
+		  											; 
+          lda PARAM1								; x position (character)
+          asl										; times 8 (8 bits per char)
+          asl										; 
           asl
-          asl
-          asl
-          clc
-          adc #( 24 - SPRITE_CENTER_OFFSET_X )
-          sta SPRITE_POS_X,x
-          sta VIC_SPRITE_X_POS,y
+          clc										; add the border offset
+          adc #( 24 - SPRITE_CENTER_OFFSET_X )		; sub the center offset
+          sta SPRITE_POS_X,x						; store x in our table
+          sta VIC_SPRITE_X_POS,y					; tell VIC2 as well
           
-          lda PARAM2
+          lda PARAM2								; same story for y 
           sta SPRITE_CHAR_POS_Y,x
           asl
           asl
@@ -634,10 +640,10 @@ CalcSpritePosFromCharPos
           clc
           adc #( 50 - SPRITE_CENTER_OFFSET_Y )
           sta SPRITE_POS_Y,x
-          sta 53249,y
+          sta VIC_SPRITE_Y_POS, y 					; 53249
           
-          lda #0
-          sta SPRITE_CHAR_POS_X_DELTA,x
+          lda #0									; set the x and y delta
+          sta SPRITE_CHAR_POS_X_DELTA,x				; to zero for this sprite
           sta SPRITE_CHAR_POS_Y_DELTA,x
           rts
 
