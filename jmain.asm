@@ -64,8 +64,13 @@ FALL_TABLE_SIZE         = 10
 
 ;level data constants
 LD_END                  = 0
-LD_LINE_H               = 1
-LD_LINE_V               = 2
+LD_LINE_H               = 1     ;data contains x,y,width,char,color
+LD_LINE_V               = 2     ;data contains x,y,height,char,color
+LD_OBJECT               = 3     ;data contains x,y,type
+
+;object type constants
+TYPE_PLAYER             = 1		; some new constants
+TYPE_ENEMY              = 2
 
 ;this creates a basic start
 *=$0801
@@ -140,38 +145,33 @@ LD_LINE_V               = 2
           lda VIC_CONTROL
           ora #$10
           sta VIC_CONTROL
-          
-          ;setup level
-          lda #0
-          sta LEVEL_NR
-          jsr BuildScreen
-          
+
           ;set sprite flags
           lda #0
           sta VIC_SPRITE_X_EXTEND
-          
+
           ;init sprite 1 pos
           lda #5
           sta PARAM1
           lda #4
           sta PARAM2
           ldx #0
-          
+
           jsr CalcSpritePosFromCharPos
-          
-          lda #100
-          ;sta VIC_SPRITE_X_POS
-          ;sta VIC_SPRITE_Y_POS
-          ;sta SPRITE_POS_X
-          ;sta SPRITE_POS_Y
-          
+
           ;set sprite image
           lda #SPRITE_PLAYER
           sta SPRITE_POINTER_BASE
-          
+
           ;enable sprite 1
           lda #1
           sta VIC_SPRITE_ENABLE
+
+          ;setup level
+          lda #0
+          sta LEVEL_NR
+          jsr BuildScreen
+          
           
 
 ;------------------------------------------------------------
@@ -192,14 +192,14 @@ GameLoop
 !zone PlayerControl
 PlayerControl
 
-          lda PLAYER_JUMP_POS				; check our index into jump table
-          bne .PlayerIsJumping				; to see if we're in a jump
-											; can take several game loops
-          jsr PlayerMoveDown				; player always moves down regardless
-          beq .NotFalling					; of joystick input (gravity)
+          lda PLAYER_JUMP_POS
+          bne .PlayerIsJumping
+
+          jsr PlayerMoveDown
+          beq .NotFalling
           
           ;player fell one pixel
-          jmp .PlayerFell					; move down checked that we fell
+          jmp .PlayerFell
           
           ;lda #$02
           ;bit $dc00
@@ -207,36 +207,35 @@ PlayerControl
           ;jsr PlayerMoveDown
           
 .NotFalling          
-          lda #0							; not falling? then reset fall pos
+          lda #0
           sta PLAYER_FALL_POS
           
-.NotDownPressed          					; and continue normally
+.NotDownPressed          
           lda #$01
           bit $dc00
           bne .NotUpPressed
           
-          jmp .PlayerIsJumping				; up pressed means jumping!
+          jmp .PlayerIsJumping
           
-.PlayerFell									; we fell! load our fall index
+.PlayerFell
           ldx PLAYER_FALL_POS
-          lda FALL_SPEED_TABLE,x			; what's our fall speed?
-          beq .FallComplete				    ; never happens. FALL_SPEED_TABLE no 0
-          sta PARAM5						; store the fall speed
+          lda FALL_SPEED_TABLE,x
+          beq .FallComplete
+          sta PARAM5
 
-.FallLoop          							; we fall several pixels in 1 loop
-          dec PARAM5						; 
+.FallLoop          
+          dec PARAM5
           beq .FallComplete
           
-          jsr PlayerMoveDown				; not done falling? move down
-          jmp .FallLoop						; and again
+          jsr PlayerMoveDown
+          jmp .FallLoop
           
-.FallComplete								; fall complete in this loop?
-          lda PLAYER_FALL_POS				; what's our fall index?
-          cmp #( FALL_TABLE_SIZE - 1 )		; at table's end?
-          beq .FallSpeedAtMax				; yes? then continue as normal
+.FallComplete
+          lda PLAYER_FALL_POS
+          cmp #( FALL_TABLE_SIZE - 1 )
+          beq .FallSpeedAtMax
           
-          inc PLAYER_FALL_POS				; no? increase index for next loop
-		  									; means we can move left during fall
+          inc PLAYER_FALL_POS
 
 .FallSpeedAtMax
 .NotUpPressed          
@@ -257,8 +256,9 @@ PlayerControl
           rts
 
 .PlayerIsJumping
-          inc PLAYER_JUMP_POS
+          ;inc PLAYER_JUMP_POS
           lda PLAYER_JUMP_POS
+		  inc PLAYER_JUMP_POS
           cmp #JUMP_TABLE_SIZE
           bne .JumpOn
           
@@ -696,6 +696,7 @@ IsCharBlockingFall
 ;------------------------------------------------------------
 ;CalcSpritePosFromCharPos
 ;calculates the real sprite coordinates from screen char pos
+;and sets them directly
 ;PARAM1 = char_pos_x
 ;PARAM2 = char_pos_y
 ;X      = sprite index
@@ -793,6 +794,10 @@ BuildScreen
           beq .LineH
           cmp #LD_LINE_V
           beq .LineV
+          cmp #LD_OBJECT				; test for object
+          bne .NotAnObject
+          jmp .Object
+.NotAnObject  
           
 .LevelComplete          
           rts
@@ -930,6 +935,47 @@ BuildScreen
           
           jmp .NextLevelData
           
+.Object
+          ;X pos
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta PARAM1 
+          
+          ;Y pos
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta PARAM2
+
+          ;type
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta PARAM3
+
+          ;store y for later
+          tya
+          pha
+          
+          ;add object to sprite array
+          jsr FindEmptySpriteSlot			; which sprite can we use?
+          beq .NoFreeSlot
+          
+          lda PARAM3						; set the sprite to active
+          sta SPRITE_ACTIVE,x
+          
+          ;PARAM1 and PARAM2 hold x,y already
+          jsr CalcSpritePosFromCharPos		; calculate sprite coordinates
+          
+          ;enable sprite
+          lda BIT_TABLE,x					; tell VIC to enable the sprite
+          ora VIC_SPRITE_ENABLE
+          sta VIC_SPRITE_ENABLE
+          
+          lda #SPRITE_PLAYER				; set the sprite shape
+          sta SPRITE_POINTER_BASE,x			; (all enemies look like player)
+          
+.NoFreeSlot                    
+          jmp .NextLevelData
+          
           
 !zone WaitFrame
           ;wait for the raster to reach line $f8
@@ -952,6 +998,30 @@ WaitFrame
 
 
 ;------------------------------------------------------------
+;Looks for an empty sprite slot, returns in X
+;#1 in A when empty slot found, #0 when full
+;------------------------------------------------------------
+
+!zone FindEmptySpriteSlot
+FindEmptySpriteSlot
+          ldx #0
+.CheckSlot          
+          lda SPRITE_ACTIVE,x
+          beq .FoundSlot
+          
+          inx
+          cpx #8
+          bne .CheckSlot
+          
+          lda #0
+          rts
+          
+.FoundSlot
+          lda #1
+          rts
+
+
+;------------------------------------------------------------
 ;clears the play area of the screen
 ;A = char
 ;Y = color
@@ -959,28 +1029,28 @@ WaitFrame
 
 !zone ClearPlayScreen
 ClearPlayScreen
-            ldx #$00
+          ldx #$00
 .ClearLoop          
-            sta SCREEN_CHAR,x
-            sta SCREEN_CHAR + 220,x
-            sta SCREEN_CHAR + 440,x
-            sta SCREEN_CHAR + 660,x
-            inx
-            cpx #220
-            bne .ClearLoop
-            
-            tya
-            ldx #$00
+          sta SCREEN_CHAR,x
+          sta SCREEN_CHAR + 220,x
+          sta SCREEN_CHAR + 440,x
+          sta SCREEN_CHAR + 660,x
+          inx
+          cpx #220
+          bne .ClearLoop
+
+          tya
+          ldx #$00
 .ColorLoop          
-            sta $d800,x
-            sta $d800 + 220,x
-            sta $d800 + 440,x
-            sta $d800 + 660,x
-            inx
-            cpx #220
-            bne .ColorLoop
-            
-            rts
+          sta $d800,x
+          sta $d800 + 220,x
+          sta $d800 + 440,x
+          sta $d800 + 660,x
+          inx
+          cpx #220
+          bne .ColorLoop
+
+          rts
 
 
 ;------------------------------------------------------------
@@ -1071,6 +1141,9 @@ LEVEL_1
           !byte LD_LINE_H,30,12,9,97,13
           !byte LD_LINE_H,10,19,20,96,13
           !byte LD_LINE_V,7,6,4,128,9
+          !byte LD_OBJECT,5,4,TYPE_PLAYER	; new object symbol: player too!
+          !byte LD_OBJECT,34,11,TYPE_ENEMY	; x, y and type (enemy)
+          !byte LD_OBJECT,10,18,TYPE_ENEMY
           !byte LD_END
 
 
@@ -1113,6 +1186,9 @@ SPRITE_CHAR_POS_Y_DELTA
           !byte 0,0,0,0,0,0,0,0
 SPRITE_POS_Y
           !byte 0,0,0,0,0,0,0,0
+SPRITE_ACTIVE							; keep a table of which sprite is active
+          !byte 0,0,0,0,0,0,0,0
+          
 BIT_TABLE
           !byte 1,2,4,8,16,32,64,128
           
