@@ -183,47 +183,130 @@ OBJECT_HEIGHT           = 8 * 2
 
 GameLoop  
           jsr WaitFrame
+          
+          jsr DeadControl		; new call
 
-          jsr ObjectControl			; move the objects (no collisions)
-          jsr CheckCollisions		; check sprite-sprite collisions
+          jsr ObjectControl
+          jsr CheckCollisions
           
           jmp GameLoop          
           
 
+;------------------------------------------------------------
+;DeadControl   (ingame behaviour when player died)
+;------------------------------------------------------------
+!zone DeadControl
+DeadControl
+          lda SPRITE_ACTIVE
+          beq .PlayerIsDead
+          rts
+          
+.PlayerIsDead
+          lda #$10
+          bit $dc00
+          bne .ButtonNotPressed
+          
+          ;button pushed
+		lda #1
+		sta BUTTON_PRESSED
+		lda #0
+		sta BUTTON_RELEASED
+          rts
+          
+.ButtonNotPressed
+		lda BUTTON_PRESSED
+		bne .Restart
+		
+          lda #1
+          sta BUTTON_RELEASED
+		lda #0
+		sta BUTTON_PRESSED
+          rts
+          
+.Restart
+          lda #5
+          sta PARAM1 
+          
+          lda #4
+          sta PARAM2
+
+          ;type
+          lda #TYPE_PLAYER
+          sta PARAM3
+
+          ldx #0
+          lda PARAM3
+          sta SPRITE_ACTIVE,x
+          
+          ;PARAM1 and PARAM2 hold x,y already
+          jsr CalcSpritePosFromCharPos
+          
+          ;enable sprite
+          lda BIT_TABLE,x
+          ora VIC_SPRITE_ENABLE
+          sta VIC_SPRITE_ENABLE
+          
+          ;initialise enemy values
+          lda #SPRITE_PLAYER
+          sta SPRITE_POINTER_BASE,x
+          
+          ;look right per default
+          lda #0
+          sta SPRITE_DIRECTION,x
+          
+          rts
+          
+
+CheckCollisions
 ;------------------------------------------------------------
 ;check object collisions (enemy vs. player etc.)
 ;x 
 ;------------------------------------------------------------
 
 CheckCollisions
-          ldx #1					; start with object 1 (not player)
+          lda SPRITE_ACTIVE
+          bne .PlayerIsAlive
+          rts          
+          
+.PlayerIsAlive          
+          ldx #1
           
 .CollisionLoop          
-          lda SPRITE_ACTIVE,x		; only check the active sprites
+          lda SPRITE_ACTIVE,x
           bne .CheckObject
           
 .NextObject          
-          inx						; take the next object
-          cpx #8					; check for the end
+          inx
+          cpx #8
           bne .CollisionLoop          
-
-          lda #0					; no collision, make the border black
-          sta VIC_BORDER_COLOR
-          rts						; and exit
+          rts
           
-.CheckObject						
-          stx PARAM2				; store our index into sprite_active
-          jsr IsEnemyCollidingWithPlayer	; check if enemy touches player
-          bne .PlayerCollidedWithEnemy		; not zero? then bingo
-          ldx PARAM2						; otherwise, restore the index
-          jmp .NextObject					; next object
+.CheckObject
+          stx PARAM2
+          jsr IsEnemyCollidingWithPlayer
+          bne .PlayerCollidedWithEnemy
+          ldx PARAM2
+          jmp .NextObject
           
 .PlayerCollidedWithEnemy          
-          lda #1							; change the border to white
-          sta VIC_BORDER_COLOR				; one frame
-          ;ldx #0							; remove object?
-          ;jsr RemoveObject
-          rts								; jump out at first collision!
+          lda #<TEXT_PRESS_FIRE			; display error message
+          sta ZEROPAGE_POINTER_1
+          lda #>TEXT_PRESS_FIRE
+          sta ZEROPAGE_POINTER_1 + 1
+          lda #10
+          sta PARAM1
+          lda #20
+          sta PARAM2
+          jsr DisplayText
+
+          ldx #1						; set up the button states
+          stx BUTTON_RELEASED
+		ldx #0
+          stx BUTTON_PRESSED
+		
+          jsr RemoveObject				; remove the player object
+
+          rts
           
 
 ;------------------------------------------------------------
@@ -232,60 +315,60 @@ CheckCollisions
 ;return a = 1 when colliding, a = 0 when not
 ;------------------------------------------------------------
 
-!zone IsEnemyCollidingWithPlayer	; function does not start here
+!zone IsEnemyCollidingWithPlayer
 
 
 .CalculateSimpleXPos
           ;Returns a with simple x pos (x halved + 128 if > 256)
           ;modifies y
-          lda BIT_TABLE,x			; get the sprite bit
-          and SPRITE_POS_X_EXTEND	; AND it so we can test if it's extended
-          beq .NoXBit				; zero? then not extended
+          lda BIT_TABLE,x
+          and SPRITE_POS_X_EXTEND
+          beq .NoXBit
           
-          lda SPRITE_POS_X,x		; extend bit set? get the enemy x pos
-          lsr						; divide by 2
-          clc						; clear carry
-          adc #128					; add 128 (set bit7)
-          rts						; done
+          lda SPRITE_POS_X,x
+          lsr
+          clc
+          adc #128
+          rts
           
 .NoXBit          
-          lda SPRITE_POS_X,x		; xtend not set? get enemy x position
-          lsr						; divide by 2
-          rts						; done
+          lda SPRITE_POS_X,x
+          lsr
+          rts
 
 IsEnemyCollidingWithPlayer
           ;modifies X
           ;check y pos
-          lda SPRITE_POS_Y,x		; get object Y position (pixel not char)
-          sec						; set carry for subtract
-          sbc #( OBJECT_HEIGHT )	; subtract 16 (look for hit below)
-          cmp SPRITE_POS_Y			; compare enemy (a) Y to player Y?
-          bcs .NotTouching			; A >= player? then no touch
-          clc						; now add 16 for previous and 16 again
+          lda SPRITE_POS_Y,x
+          sec
+          sbc #( OBJECT_HEIGHT )      ;offset to bottom
+          cmp SPRITE_POS_Y
+          bcs .NotTouching
+          clc
           adc #( OBJECT_HEIGHT + OBJECT_HEIGHT - 1 )
-          cmp SPRITE_POS_Y			; compare enemy (a) Y to player Y
-          bcc .NotTouching			; A < player then no touch
+          cmp SPRITE_POS_Y
+          bcc .NotTouching
           
           ;X = Index in enemy-table
-          jsr .CalculateSimpleXPos	; now we check for X..get x/2
-          sta PARAM1				; store in PARAM1
-          ldx #0					; get x/2 for player
+          jsr .CalculateSimpleXPos
+          sta PARAM1
+          ldx #0
           jsr .CalculateSimpleXPos
           
-          sec						; subtract 4 (half width) check right
+          sec
           sbc #4
           ;position X-Anfang Player - 12 Pixel
-          cmp PARAM1				; compare player Y (A) to enemy Y (PARAM1)
-          bcs .NotTouching			; A >= PARAM1? then not touching
-          adc #8					; add 4 for previous and 4 again
-          cmp PARAM1				; compare player Y (A) to enemy Y (PARAM1)
-          bcc .NotTouching			; A < PARAM1 
+          cmp PARAM1
+          bcs .NotTouching
+          adc #8
+          cmp PARAM1
+          bcc .NotTouching
           
-          lda #1					; touching!
+          lda #1
           rts
           
 .NotTouching
-          lda #0					; no touching!
+          lda #0
           rts
           
 ;------------------------------------------------------------
@@ -1303,6 +1386,71 @@ ClearPlayScreen
 
 
 ;------------------------------------------------------------
+;displays a line of text
+;ZEROPAGE_POINTER_1 = pointer to text
+;PARAM1 = X
+;PARAM2 = Y;
+;modifies ZEROPAGE_POINTER_2 and ZEROPAGE_POINTER_3
+
+!zone DisplayText
+DisplayText
+            ldx PARAM2						; low part of address for
+            lda SCREEN_LINE_OFFSET_TABLE_LO,x	; first char on line
+            sta ZEROPAGE_POINTER_2				; for char and color memory
+            sta ZEROPAGE_POINTER_3
+            lda SCREEN_LINE_OFFSET_TABLE_HI,x	; also for the high part
+            sta ZEROPAGE_POINTER_2 + 1
+            clc
+            adc #( ( SCREEN_COLOR - SCREEN_CHAR ) & 0xff00 ) >> 8
+            sta ZEROPAGE_POINTER_3 + 1
+
+            lda ZEROPAGE_POINTER_2				; get the char address
+            clc
+            adc PARAM1						; add our x coordinate
+            sta ZEROPAGE_POINTER_2
+            lda ZEROPAGE_POINTER_2 + 1			; same for high end
+            adc #0							; add with carry for page
+            sta ZEROPAGE_POINTER_2 + 1			; boundary
+            lda ZEROPAGE_POINTER_3				; and the same for color
+            clc							; memory
+            adc PARAM1
+            sta ZEROPAGE_POINTER_3
+            lda ZEROPAGE_POINTER_3 + 1
+            adc #0
+            sta ZEROPAGE_POINTER_3 + 1
+            
+            ldy #0							; loop thru text
+text_display_loop
+            lda (ZEROPAGE_POINTER_1),y
+            cmp #$2A						; compare to *
+            beq text_display_done				; that's the end marker
+            cmp #45							; interpret line breaks!
+            beq .LineBreak
+            sta (ZEROPAGE_POINTER_2),y			; store character
+            lda #1							; color = white
+            sta (ZEROPAGE_POINTER_3),y			; store color
+            iny							; next character
+            jmp text_display_loop
+        
+.LineBreak
+            iny							; next character
+            tya							; transfer to A
+            clc
+            adc ZEROPAGE_POINTER_1				; add lo part
+            sta ZEROPAGE_POINTER_1				; store in ZP1
+            lda #0							
+            adc ZEROPAGE_POINTER_1 + 1			; add hi part (carry for
+            sta ZEROPAGE_POINTER_1 + 1			; page boundary)
+            
+            inc PARAM2						; increase Y with two
+            inc PARAM2
+            jmp DisplayText					; and display text
+            
+text_display_done
+            rts
+
+
+;------------------------------------------------------------
 ;copies charset from ZEROPAGE_POINTER_1 to ZEROPAGE_POINTER_2
 ;------------------------------------------------------------
 
@@ -1414,6 +1562,10 @@ LEVEL_BORDER_DATA
 
 LEVEL_NR  
           !byte 0
+BUTTON_PRESSED							; new
+          !byte 0
+BUTTON_RELEASED						; new
+          !byte 0
           
 PLAYER_JUMP_POS
           !byte 0
@@ -1424,7 +1576,6 @@ PLAYER_FALL_POS
           !byte 0
 FALL_SPEED_TABLE
           !byte 1,1,2,2,3,3,3,3,3,3
-          
           
 SPRITE_POS_X
           !byte 0,0,0,0,0,0,0,0
@@ -1457,8 +1608,11 @@ ENEMY_BEHAVIOUR_TABLE_HI
           
 BIT_TABLE
           !byte 1,2,4,8,16,32,64,128
-XBIT_TABLE
+XBIT_TABLE									; new but unused
           !byte 0,128
+          
+TEXT_PRESS_FIRE          						; text we display
+          !text "PRESS FIRE - TO RESTART*"
           
 SCREEN_LINE_OFFSET_TABLE_LO
           !byte ( SCREEN_CHAR +   0 ) & 0x00ff
