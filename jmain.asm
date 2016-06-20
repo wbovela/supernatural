@@ -75,6 +75,10 @@ TYPE_ENEMY_UD           = 3
 
 OBJECT_HEIGHT           = 8 * 2
 
+;item type constants
+
+;number of possible items
+
 ;this creates a basic start
 *=$0801
 
@@ -368,20 +372,20 @@ IsEnemyCollidingWithPlayer
 ;------------------------------------------------------------
 !zone PlayerControl
 PlayerControl
-          lda PLAYER_SHOT_PAUSE	; no shooting during shot pause
-          bne .FirePauseActive	; 
+          lda PLAYER_SHOT_PAUSE
+          bne .FirePauseActive
           
-          lda #1				; set color 1 (white) to 
-          sta VIC_SPRITE_COLOR	; sprite #0 (player)
+          lda #1
+          sta VIC_SPRITE_COLOR
           
-          lda #$10				; check for button press
+          lda #$10
           bit $dc00
-          bne .NotFirePushed		; fire not pushed, just continue
+          bne .NotFirePushed
           
-          jsr FireShot			; fired!
+          jsr FireShot
           jmp .FireDone
 
-.FirePauseActive				; dec shot pause 
+.FirePauseActive
           dec PLAYER_SHOT_PAUSE
 
 .FireDone
@@ -487,33 +491,33 @@ PlayerControl
 ;player fires shot
 ;------------------------------------------------------------
 !zone FireShot
-FireShot								; new
+FireShot
           ;frame delay until next shot
-          lda #10						; 10 loops = 1 frame??
-          sta PLAYER_SHOT_PAUSE			; set the shot pause
+          lda #10
+          sta PLAYER_SHOT_PAUSE
           
           ;mark player as shooting
-          lda #4						; color the player different
+          lda #4
           sta VIC_SPRITE_COLOR
           
-          ldy SPRITE_CHAR_POS_Y			; get the address of the 
-          dey							; first char of the line
-          lda SCREEN_LINE_OFFSET_TABLE_LO,y	; we're on -1 (1 up)
+          ldy SPRITE_CHAR_POS_Y
+          dey
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y
           sta ZEROPAGE_POINTER_1
           lda SCREEN_LINE_OFFSET_TABLE_HI,y
           sta ZEROPAGE_POINTER_1 + 1
           
-          ldy SPRITE_CHAR_POS_X			; get our x position
+          ldy SPRITE_CHAR_POS_X
           
 .ShotContinue
-          lda SPRITE_DIRECTION			; get our direction
+          lda SPRITE_DIRECTION
           beq .ShootRight
 
           ;shooting left          
           dey
           
-          lda (ZEROPAGE_POINTER_1),y		; check if our shot
-          jsr IsCharBlocking				; is blocking
+          lda (ZEROPAGE_POINTER_1),y
+          jsr IsCharBlocking
           bne .ShotDone
           jmp .CheckHitEnemy
           
@@ -529,59 +533,138 @@ FireShot								; new
           ldx #1
           
 .CheckEnemy          
-          stx PARAM2			; PARAM2 = sprite number
-          lda SPRITE_ACTIVE,x		; A = sprite type or 0
+          stx PARAM2
+          lda SPRITE_ACTIVE,x
           beq .CheckNextEnemy
           tax
-          lda IS_TYPE_ENEMY,x		; check enemy based on type
+          lda IS_TYPE_ENEMY,x
           beq .CheckNextEnemy
           
           ;sprite pos matches on x?
-          ldx PARAM2			; PARAM2 was sprite number
-          sty PARAM1			; Y = our X position
-          lda SPRITE_CHAR_POS_X,x	; get our enemy position
-          cmp PARAM1			; enemy x == player x?
+          ldx PARAM2
+          sty PARAM1
+          lda SPRITE_CHAR_POS_X,x
+          cmp PARAM1
           bne .CheckNextEnemy
           
           ;sprite pos matches on y?
-          lda SPRITE_CHAR_POS_Y,x	; compare Y positions
+          lda SPRITE_CHAR_POS_Y,x
           cmp SPRITE_CHAR_POS_Y
           beq .EnemyHit
 
           ;sprite pos matches on y + 1?
-          clc					; enemy y+1 = player Y?
+          clc
           adc #1
           cmp SPRITE_CHAR_POS_Y
           beq .EnemyHit
 
           ;sprite pos matches on y - 1?
-          sec					; enemy y-1-1 = player Y?
+          sec
           sbc #2
           cmp SPRITE_CHAR_POS_Y
           bne .CheckNextEnemy
           
 .EnemyHit          
           ;enemy hit!
-          dec SPRITE_HP,x		; take one HP away from enemy
-          lda SPRITE_HP,x		; load into A
-          beq .EnemyKilled		; check it for 0
+          dec SPRITE_HP,x
+          lda SPRITE_HP,x
+          beq .EnemyKilled
           jmp .ShotDone
           
           
 .EnemyKilled          
-          jsr RemoveObject		; x = sprite number, remove it
+          
           jmp .ShotDone
           
 .CheckNextEnemy     
-          ldx PARAM2			; PARAM2 was sprite number
-          inx					; increase
-          cpx #8				; end of table?
+          ldx PARAM2
+          inx
+          cpx #8
           bne .CheckEnemy
           jmp  .ShotContinue
           
 .ShotDone          
-          rts					; shot done, jump out
+          rts
 
+;------------------------------------------------------------
+;spawns an item at char position from object x
+;X = object index
+;------------------------------------------------------------
+!zone SpawnItem
+SpawnItem
+          ;find free item slot
+          ldy #0
+          
+.CheckNextItemSlot          
+          lda ITEM_ACTIVE,y
+          cmp #ITEM_NONE
+          beq .FreeSlotFound
+          iny
+          cpy #ITEM_COUNT
+          bne .CheckNextItemSlot
+          rts
+          
+.FreeSlotFound          
+          jsr GenerateRandomNumber
+          and #$01
+          
+          sta ITEM_POS_X,y
+          lda SPRITE_CHAR_POS_Y,x
+          sta ITEM_POS_Y,y
+
+          
+          sta ZEROPAGE_POINTER_1
+          sta ZEROPAGE_POINTER_2
+          lda SCREEN_LINE_OFFSET_TABLE_HI,y
+          sta ZEROPAGE_POINTER_1 + 1
+          clc
+          adc #( ( SCREEN_COLOR - SCREEN_CHAR ) & 0xff00 ) >> 8
+          sta ZEROPAGE_POINTER_2 + 1
+          
+          
+          ;store old background and put item 
+          ;we don't take overlapping items in account yet!
+          lda (ZEROPAGE_POINTER_2),y
+          sta ITEM_BACK_COLOR_UL,x
+          
+          sta (ZEROPAGE_POINTER_1),y
+          lda ITEM_COLOR_UL,x
+          sta (ZEROPAGE_POINTER_2),y
+          
+          lda (ZEROPAGE_POINTER_1),y
+          sta ITEM_BACK_CHAR_UR,x
+          lda (ZEROPAGE_POINTER_2),y
+          sta ITEM_BACK_COLOR_UR,x
+
+          lda ITEM_CHAR_UR,x
+          sta (ZEROPAGE_POINTER_1),y
+          lda ITEM_COLOR_UR,x
+          sta (ZEROPAGE_POINTER_2),y
+          
+          clc
+          adc #39
+          tay
+          lda (ZEROPAGE_POINTER_1),y
+          sta ITEM_BACK_CHAR_LL,x
+          lda (ZEROPAGE_POINTER_2),y
+          sta ITEM_BACK_COLOR_LL,x
+          
+          lda ITEM_CHAR_LL,x
+          sta (ZEROPAGE_POINTER_1),y
+          lda ITEM_COLOR_LL,x
+          sta (ZEROPAGE_POINTER_2),y
+          
+          lda (ZEROPAGE_POINTER_1),y
+          sta ITEM_BACK_CHAR_LR,x
+          lda (ZEROPAGE_POINTER_2),y
+          sta ITEM_BACK_COLOR_LR,x
+          lda ITEM_CHAR_LR,x
+          sta (ZEROPAGE_POINTER_1),y
+          lda ITEM_COLOR_LR,x
+          sta (ZEROPAGE_POINTER_2),y
+
+          
+          
 ;------------------------------------------------------------
 ;PlayerMoveLeft
 ;------------------------------------------------------------
@@ -1378,7 +1461,7 @@ BuildScreen
           pha
           
           ;add object to sprite array
-          jsr FindEmptySpriteSlot			; A=FindEmptySpriteSlot(&X);
+          jsr FindEmptySpriteSlot
           beq .NoFreeSlot
           
           lda PARAM3
@@ -1400,9 +1483,9 @@ BuildScreen
           lda #0
           sta SPRITE_DIRECTION,x
           
-          ;5 HP per default				; set hit points for enemies
-          lda #5						; x is set to sprite no. by
-          sta SPRITE_HP,x				; FindEmptySpriteSlot (!)
+          ;5 HP per default
+          lda #5
+          sta SPRITE_HP,x
           
 .NoFreeSlot                    
           jmp .NextLevelData
@@ -1512,61 +1595,74 @@ ClearPlayScreen
 
 !zone DisplayText
 DisplayText
-            ldx PARAM2
-            lda SCREEN_LINE_OFFSET_TABLE_LO,x
-            sta ZEROPAGE_POINTER_2
-            sta ZEROPAGE_POINTER_3
-            lda SCREEN_LINE_OFFSET_TABLE_HI,x
-            sta ZEROPAGE_POINTER_2 + 1
-            clc
-            adc #( ( SCREEN_COLOR - SCREEN_CHAR ) & 0xff00 ) >> 8
-            sta ZEROPAGE_POINTER_3 + 1
+          ldx PARAM2
+          lda SCREEN_LINE_OFFSET_TABLE_LO,x
+          sta ZEROPAGE_POINTER_2
+          sta ZEROPAGE_POINTER_3
+          lda SCREEN_LINE_OFFSET_TABLE_HI,x
+          sta ZEROPAGE_POINTER_2 + 1
+          clc
+          adc #( ( SCREEN_COLOR - SCREEN_CHAR ) & 0xff00 ) >> 8
+          sta ZEROPAGE_POINTER_3 + 1
 
-            lda ZEROPAGE_POINTER_2
-            clc
-            adc PARAM1
-            sta ZEROPAGE_POINTER_2
-            lda ZEROPAGE_POINTER_2 + 1
-            adc #0
-            sta ZEROPAGE_POINTER_2 + 1
-            lda ZEROPAGE_POINTER_3
-            clc
-            adc PARAM1
-            sta ZEROPAGE_POINTER_3
-            lda ZEROPAGE_POINTER_3 + 1
-            adc #0
-            sta ZEROPAGE_POINTER_3 + 1
-            
-            ldy #0
-text_display_loop
-            lda (ZEROPAGE_POINTER_1),y
-            cmp #$2A
-            beq text_display_done
-            cmp #45
-            beq .LineBreak
-            sta (ZEROPAGE_POINTER_2),y
-            lda #1
-            sta (ZEROPAGE_POINTER_3),y
-            iny
-            jmp text_display_loop
+          lda ZEROPAGE_POINTER_2
+          clc
+          adc PARAM1
+          sta ZEROPAGE_POINTER_2
+          lda ZEROPAGE_POINTER_2 + 1
+          adc #0
+          sta ZEROPAGE_POINTER_2 + 1
+          lda ZEROPAGE_POINTER_3
+          clc
+          adc PARAM1
+          sta ZEROPAGE_POINTER_3
+          lda ZEROPAGE_POINTER_3 + 1
+          adc #0
+          sta ZEROPAGE_POINTER_3 + 1
+
+          ldy #0
+.InLineLoop
+          lda (ZEROPAGE_POINTER_1),y
+          cmp #$2A
+          beq .EndMarkerReached
+          cmp #45
+          beq .LineBreak
+          sta (ZEROPAGE_POINTER_2),y
+          lda #1
+          sta (ZEROPAGE_POINTER_3),y
+          iny
+          jmp .InLineLoop
         
 .LineBreak
-            iny
-            tya
-            clc
-            adc ZEROPAGE_POINTER_1
-            sta ZEROPAGE_POINTER_1
-            lda #0
-            adc ZEROPAGE_POINTER_1 + 1
-            sta ZEROPAGE_POINTER_1 + 1
-            
-            inc PARAM2
-            inc PARAM2
-            jmp DisplayText
-            
-text_display_done
-            rts
+          iny
+          tya
+          clc
+          adc ZEROPAGE_POINTER_1
+          sta ZEROPAGE_POINTER_1
+          lda #0
+          adc ZEROPAGE_POINTER_1 + 1
+          sta ZEROPAGE_POINTER_1 + 1
 
+          inc PARAM2
+          inc PARAM2
+          jmp DisplayText
+            
+.EndMarkerReached
+          rts
+
+
+;------------------------------------------------------------
+;generates a sometimes random number
+;------------------------------------------------------------
+!zone GenerateRandomNumber
+GenerateRandomNumber
+          lda $dc04
+          eor $dc05
+          eor $dd04
+          adc $dd05
+          eor $dd06
+          eor $dd07
+          rts
 
 ;------------------------------------------------------------
 ;copies charset from ZEROPAGE_POINTER_1 to ZEROPAGE_POINTER_2
@@ -1660,7 +1756,6 @@ LEVEL_1
           !byte LD_LINE_H,20,11,4,96,13
           !byte LD_LINE_H,16,12,4,96,13
           !byte LD_LINE_H,12,13,4,96,13
-          !byte LD_LINE_H,12,16,4,96,13			; added this line	
           !byte LD_LINE_H,8,14,4,96,13
           !byte LD_OBJECT,5,4,TYPE_PLAYER
           !byte LD_OBJECT,34,11,TYPE_ENEMY_LR
@@ -1689,14 +1784,14 @@ BUTTON_RELEASED
 PLAYER_JUMP_POS
           !byte 0
 PLAYER_JUMP_TABLE
-          !byte 8,8,7,5,3,2,1,1,1,0			; jump table, added 8px
+          !byte 8,7,5,3,2,1,1,1,0,0
 PLAYER_FALL_POS
           !byte 0
 FALL_SPEED_TABLE
           !byte 1,1,2,2,3,3,3,3,3,3
-PLAYER_SHOT_PAUSE							; new
+PLAYER_SHOT_PAUSE
           !byte 0
-SPRITE_HP									; new
+SPRITE_HP
           !byte 0,0,0,0,0,0,0,0
           
 SPRITE_POS_X
@@ -1717,6 +1812,23 @@ SPRITE_ACTIVE
           !byte 0,0,0,0,0,0,0,0
 SPRITE_DIRECTION
           !byte 0,0,0,0,0,0,0,0
+          
+ITEM_POS_Y
+          !fill ITEM_COUNT,0
+          
+ITEM_BACK_COLOR_UL
+          !fill ITEM_COUNT,0
+ITEM_BACK_CHAR_UR            
+          !fill ITEM_COUNT,0
+ITEM_BACK_COLOR_UR
+          !fill ITEM_COUNT,0
+ITEM_BACK_CHAR_LL            
+          !fill ITEM_COUNT,0
+ITEM_BACK_COLOR_LL
+          !fill ITEM_COUNT,0
+ITEM_BACK_CHAR_LR            
+          !fill ITEM_COUNT,0
+ITEM_BACK_COLOR_LR
 
 ENEMY_BEHAVIOUR_TABLE_LO          
           !byte <PlayerControl
@@ -1728,11 +1840,27 @@ ENEMY_BEHAVIOUR_TABLE_HI
           !byte >BehaviourDumbEnemyLR
           !byte >BehaviourDumbEnemyUD
           
-IS_TYPE_ENEMY							; new boolean table
-          !byte 0     ;dummy entry			; to determine enemy state
-          !byte 0     ;player				; by type.
+IS_TYPE_ENEMY
+          !byte 0     ;dummy entry
+          !byte 0     ;player
           !byte 1     ;enemy_lr
           !byte 1     ;enemy_ud
+          
+          !byte 4,8
+ITEM_COLOR_UL
+          !byte 7,2
+ITEM_CHAR_UR
+          !byte 5,9
+ITEM_COLOR_UR
+          !byte 4,2
+ITEM_CHAR_LL
+          !byte 6,10
+ITEM_COLOR_LL
+          !byte 7,2
+ITEM_CHAR_LR
+          !byte 7,11
+ITEM_COLOR_LR
+          !byte 4,2
           
 BIT_TABLE
           !byte 1,2,4,8,16,32,64,128
