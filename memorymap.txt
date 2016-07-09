@@ -1,0 +1,18 @@
+Supernatural memory map:
+
+$C400-$0810 = 42Kb 
+
+Zero page:
+$03 - $07 Parameters
+$17 - $23 Zero page pointers
+
+$0801 Basic starter
+$0810 Start of code
+
+$C400 Screen colour backup memory
+$C800 Screen character backup memory
+$CC00 Screen character memory (sprite pointer base)
+$D000 Sprite data
+$D800 Screen colour memory
+
+$F000 character set
