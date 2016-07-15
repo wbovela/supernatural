@@ -41,10 +41,10 @@ SCREEN_CHAR             = $CC00
 SCREEN_COLOR            = $D800
 
 ;address of the screen backbuffer
-SCREEN_BACK_CHAR        = $C800		; screen backup buffer
+SCREEN_BACK_CHAR        = $C800
 
 ;address of the screen backbuffer
-SCREEN_BACK_COLOR       = $C400		; color backup buffer
+SCREEN_BACK_COLOR       = $C400
 
 
 ;address of sprite pointers
@@ -83,12 +83,12 @@ TYPE_ENEMY_UD           = 3
 OBJECT_HEIGHT           = 8 * 2
 
 ;item type constants
-ITEM_BULLET             = 0		; item constants
+ITEM_BULLET             = 0
 ITEM_HEALTH             = 1
 ITEM_NONE               = 255
 
 ;number of possible items
-ITEM_COUNT              = 8		; max number of items
+ITEM_COUNT              = 8
 
 ;this creates a basic start
 *=$0801
@@ -166,59 +166,22 @@ ITEM_COUNT              = 8		; max number of items
 
           ;set sprite flags
           lda #0
-          sta VIC_SPRITE_X_EXTEND
-
-          ;init sprite 1 pos
-          lda #5
-          sta PARAM1
-          lda #4
-          sta PARAM2
-          ldx #0
-
-          jsr CalcSpritePosFromCharPos
-
-          ;set sprite image
-          lda #SPRITE_PLAYER
-          sta SPRITE_POINTER_BASE
-
-          ;enable sprite 1
-          lda #1
-          sta VIC_SPRITE_ENABLE
+          sta VIC_SPRITE_X_EXTEND	; init player sprite code removed
+          sta VIC_SPRITE_ENABLE	; where has it gone?
 
           ;setup level
           lda #0
           sta LEVEL_NR
           jsr BuildScreen
-          
-          ;copy level data to back buffer
-          ldx #$00
-.ClearLoop          
-          lda SCREEN_CHAR,x				; copy entire screen to backup
-          sta SCREEN_BACK_CHAR,x
-          lda SCREEN_CHAR + 230,x
-          sta SCREEN_BACK_CHAR + 230,x
-          lda SCREEN_CHAR + 460,x
-          sta SCREEN_BACK_CHAR + 460,x
-          lda SCREEN_CHAR + 690,x
-          sta SCREEN_BACK_CHAR + 690,x
-          inx
-          cpx #230
-          bne .ClearLoop
 
-          ldx #$00
-.ColorLoop          
-          lda SCREEN_COLOR,x				; copy entire color to backup
-          sta SCREEN_BACK_COLOR,x
-          lda SCREEN_COLOR + 230,x
-          sta SCREEN_BACK_COLOR + 230,x
-          lda SCREEN_COLOR + 460,x
-          sta SCREEN_BACK_COLOR + 460,x
-          lda SCREEN_COLOR + 690,x
-          sta SCREEN_BACK_COLOR + 690,x
-          inx
-          cpx #230
-          bne .ColorLoop
+          jsr CopyLevelToBackBuffer   ; call to backup screen code       
 
+          lda #48					; show number of enemies alive
+          clc
+          adc NUMBER_ENEMIES_ALIVE
+          sta SCREEN_CHAR
+          lda #1
+          sta SCREEN_COLOR
           
 
 ;------------------------------------------------------------
@@ -228,6 +191,7 @@ ITEM_COUNT              = 8		; max number of items
 GameLoop  
           jsr WaitFrame
           
+          jsr GameFlowControl		; new function call in main loop!
           jsr DeadControl
 
           jsr ObjectControl
@@ -235,6 +199,47 @@ GameLoop
           
           jmp GameLoop          
           
+
+;------------------------------------------------------------
+;controls the game flow
+;------------------------------------------------------------
+!zone GameFlowControl
+GameFlowControl
+          inc DELAYED_GENERIC_COUNTER	; this counter waits 8 frames
+          lda DELAYED_GENERIC_COUNTER	; before counting the level done delay
+          cmp #8					; so we get 8*20 frames
+          bne .NoTimedActionYet
+          lda #0					; reset the generic counter
+          sta DELAYED_GENERIC_COUNTER
+
+          ;level done delay
+          lda NUMBER_ENEMIES_ALIVE		; test number of enemies left
+          bne .NotDoneYet
+
+          inc LEVEL_DONE_DELAY		; enemies=0? then wait 20 frames
+          lda LEVEL_DONE_DELAY		; before next level
+          cmp #20
+          beq .GoToNextLevel
+          inc VIC_BORDER_COLOR		; otherwise change the border color
+          
+.NotDoneYet        
+
+          
+          
+.NoTimedActionYet          
+          rts
+
+
+.GoToNextLevel
+          lda #0					; disable all sprites
+          sta VIC_SPRITE_ENABLE
+          
+          inc LEVEL_NR				; increase level
+          jsr BuildScreen			; build that screen
+          
+          jsr CopyLevelToBackBuffer	; and make a backup copy of it
+          
+          rts
 
 ;------------------------------------------------------------
 ;DeadControl   (ingame behaviour when player died)
@@ -415,34 +420,43 @@ PlayerControl
           ;check if the player collected an item
           ldy #0
 .ItemLoop
+          lda ITEM_ACTIVE,y
           cmp #ITEM_NONE
           beq .NextItem
           
+          lda ITEM_POS_X,y
+          cmp SPRITE_CHAR_POS_X
           beq .MatchX
 
+          clc
           adc #1
           cmp SPRITE_CHAR_POS_X
           beq .MatchX
 
           sec
+          sbc #2
           cmp SPRITE_CHAR_POS_X
           beq .MatchX
           
           jmp .NextItem
           
 .MatchX          
+          lda ITEM_POS_Y,y
           clc
+          adc #1
           cmp SPRITE_CHAR_POS_Y
           bne .NextItem
           
           ;pick item!
+          jsr PickItem
           
 .NextItem
+          iny
           cpy #ITEM_COUNT
           beq .LastItemReached
           jmp .ItemLoop
           
-.LastItemReached          			; check the shooting stuff etc.
+.LastItemReached          
           lda PLAYER_SHOT_PAUSE
           bne .FirePauseActive
           
@@ -563,11 +577,11 @@ PlayerControl
 ;Y = item index
 ;------------------------------------------------------------
 !zone PickItem
-PickItem							; we picked up an item!
-          lda #ITEM_NONE				; update item active table
+PickItem
+          lda #ITEM_NONE
           sta ITEM_ACTIVE,y
           
-          jsr RemoveItemImage			; now remove the image
+          jsr RemoveItemImage
           rts
 
           
@@ -575,96 +589,96 @@ PickItem							; we picked up an item!
 ;put item image on screen
 ;X = item index
 ;------------------------------------------------------------
-!zone PutItemImage					; item image on screen
+!zone PutItemImage
 PutItemImage
           
-          ldy ITEM_POS_Y,x			; get the item's Y position
-          lda SCREEN_LINE_OFFSET_TABLE_LO,y	; line's low address of char 0 
-          sta ZEROPAGE_POINTER_1		; store in two pointers
+          ldy ITEM_POS_Y,x
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+          sta ZEROPAGE_POINTER_1
           sta ZEROPAGE_POINTER_2
-          lda SCREEN_LINE_OFFSET_TABLE_HI,y	; get the high part
-          sta ZEROPAGE_POINTER_1 + 1		; store in pointer 1
+          lda SCREEN_LINE_OFFSET_TABLE_HI,y
+          sta ZEROPAGE_POINTER_1 + 1
           clc
           adc #( ( SCREEN_COLOR - SCREEN_CHAR ) & 0xff00 ) >> 8
-          sta ZEROPAGE_POINTER_2 + 1		; pointer 2 is color memory
+          sta ZEROPAGE_POINTER_2 + 1
           
-          ldy ITEM_POS_X,x			; get the item's X position
+          ldy ITEM_POS_X,x
           
-          lda ITEM_ACTIVE,x			; get the item type
+          lda ITEM_ACTIVE,x
           tax
           ;put item 
-          lda ITEM_CHAR_UL,x			; get the item's upper left character
-          sta (ZEROPAGE_POINTER_1),y	; store on screen
-          lda ITEM_COLOR_UL,x			; get the upper left colour
-          sta (ZEROPAGE_POINTER_2),y	; store in color memory
+          lda ITEM_CHAR_UL,x
+          sta (ZEROPAGE_POINTER_1),y
+          lda ITEM_COLOR_UL,x
+          sta (ZEROPAGE_POINTER_2),y
           
-          iny						; do the same for upper right
+          iny
           lda ITEM_CHAR_UR,x
           sta (ZEROPAGE_POINTER_1),y
           lda ITEM_COLOR_UR,x
           sta (ZEROPAGE_POINTER_2),y
           
-          tya						; lower left
+          tya
           clc
           adc #39
           tay
           
-          lda ITEM_CHAR_LL,x			
+          lda ITEM_CHAR_LL,x
           sta (ZEROPAGE_POINTER_1),y
           lda ITEM_COLOR_LL,x
           sta (ZEROPAGE_POINTER_2),y
           
-          iny						; lower right
+          iny
           lda ITEM_CHAR_LR,x
           sta (ZEROPAGE_POINTER_1),y
           lda ITEM_COLOR_LR,x
           sta (ZEROPAGE_POINTER_2),y
           
-          rts						; done
+          rts
           
 
 ;------------------------------------------------------------
 ;remove item image from screen
 ;Y = item index
 ;------------------------------------------------------------
-!zone RemoveItemImage					; remove image item from screen
+!zone RemoveItemImage
 RemoveItemImage
-          sty PARAM2					; store the item index
+          sty PARAM2
           
-          lda ITEM_POS_Y,y				; get the item's Y position
-          tay							; move it to Y
-          lda SCREEN_LINE_OFFSET_TABLE_LO,y	; get the lo part of char 0 of that line
-          sta ZEROPAGE_POINTER_1			; store that in four(!) pointers
+          lda ITEM_POS_Y,y
+          tay
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+          sta ZEROPAGE_POINTER_1
           sta ZEROPAGE_POINTER_2
           sta ZEROPAGE_POINTER_3
           sta ZEROPAGE_POINTER_4
-          lda SCREEN_LINE_OFFSET_TABLE_HI,y	; get the high part
-          sta ZEROPAGE_POINTER_1 + 1		; charter pointer
+          lda SCREEN_LINE_OFFSET_TABLE_HI,y
+          sta ZEROPAGE_POINTER_1 + 1
           clc
           adc #( ( SCREEN_COLOR - SCREEN_CHAR ) & 0xff00 ) >> 8
-          sta ZEROPAGE_POINTER_2 + 1		; color pointer
+          sta ZEROPAGE_POINTER_2 + 1
           sec
           sbc #( ( SCREEN_COLOR - SCREEN_BACK_CHAR ) & 0xff00 ) >> 8
-          sta ZEROPAGE_POINTER_3 + 1		; screen backup
+          sta ZEROPAGE_POINTER_3 + 1
           sec
           sbc #( ( SCREEN_BACK_CHAR - SCREEN_BACK_COLOR ) & 0xff00 ) >> 8
-          sta ZEROPAGE_POINTER_4 + 1		; color backup
+          sta ZEROPAGE_POINTER_4 + 1
           
-          ldx PARAM2					; x = item index
-          ldy ITEM_POS_X,x				; get item's x position
+          ldx PARAM2
+          ldy ITEM_POS_X,x
           
-          lda (ZEROPAGE_POINTER_4),y		; load backup color
-          sta (ZEROPAGE_POINTER_2),y		; store in color
-          lda (ZEROPAGE_POINTER_3),y		; load backup character
-          sta (ZEROPAGE_POINTER_1),y		; store in character
+          lda (ZEROPAGE_POINTER_4),y
+          sta (ZEROPAGE_POINTER_2),y
+          lda (ZEROPAGE_POINTER_3),y
+          sta (ZEROPAGE_POINTER_1),y
           
-          iny							; next x position (up right)
+          iny
           lda (ZEROPAGE_POINTER_4),y
           sta (ZEROPAGE_POINTER_2),y
           lda (ZEROPAGE_POINTER_3),y
           sta (ZEROPAGE_POINTER_1),y
 
-          tya							; next line (lower left)
+          tya
           clc
           adc #39
           tay
@@ -673,7 +687,7 @@ RemoveItemImage
           lda (ZEROPAGE_POINTER_3),y
           sta (ZEROPAGE_POINTER_1),y
           
-          iny							; lower right
+          iny
           lda (ZEROPAGE_POINTER_4),y
           sta (ZEROPAGE_POINTER_2),y
           lda (ZEROPAGE_POINTER_3),y
@@ -682,13 +696,13 @@ RemoveItemImage
           ;repaint other items to avoid broken overlapped items
           ldx #0
 .RepaintLoop
-          lda ITEM_ACTIVE,x			; loop through the items
-          cmp #ITEM_NONE				; if it's not an empty item
-          beq .RepaintNextItem		; repaint it
+          lda ITEM_ACTIVE,x
+          cmp #ITEM_NONE
+          beq .RepaintNextItem
           
-          txa						; make sure x is restored
+          txa
           pha
-          jsr PutItemImage			; put the item on screen
+          jsr PutItemImage
           pla
           tax
           
@@ -697,7 +711,7 @@ RemoveItemImage
           cpx #ITEM_COUNT
           bne .RepaintLoop
           
-          ldy PARAM2				; restore Y=item index
+          ldy PARAM2
           rts
 
 
@@ -718,8 +732,8 @@ FireShot
           dey
           lda SCREEN_LINE_OFFSET_TABLE_LO,y
           sta ZEROPAGE_POINTER_1
-          lda SCREEN_LINE_OFFSET_TABLE_HI,y		; we now check the
-          sec								; screen's backup copy?
+          lda SCREEN_LINE_OFFSET_TABLE_HI,y
+          sec
           sbc #( ( ( SCREEN_CHAR - SCREEN_BACK_CHAR ) & 0xff00 ) >> 8 )
           sta ZEROPAGE_POINTER_1 + 1
           
@@ -789,9 +803,17 @@ FireShot
           
           
 .EnemyKilled          
-          jsr RemoveObject
+          ldy SPRITE_ACTIVE,x		; get the enemy type
+          lda IS_TYPE_ENEMY,y		; check if it's an enemy
+          beq .NoEnemy
           
-          jsr SpawnItem
+          dec NUMBER_ENEMIES_ALIVE	; if so, decrease number of enemies
+          dec SCREEN_CHAR		; decrease the number on screen
+          
+.NoEnemy          
+          jsr RemoveObject		; then remove the object
+          
+          jsr SpawnItem			; and spawn an item
           jmp .ShotDone
           
 .CheckNextEnemy     
@@ -827,7 +849,7 @@ SpawnItem
           and #$01
           
           sta ITEM_ACTIVE,y
-          sta PARAM1				; save item type in PARAM1 now
+          sta PARAM1
           
           lda SPRITE_CHAR_POS_X,x
           sta ITEM_POS_X,y
@@ -839,7 +861,7 @@ SpawnItem
           stx PARAM5
           tya
           tax
-          jsr PutItemImage			; use it in PutItemImage
+          jsr PutItemImage
           
           ldx PARAM5
           rts
@@ -882,7 +904,7 @@ ObjectMoveLeft
           lda SCREEN_LINE_OFFSET_TABLE_LO,y
           sta ZEROPAGE_POINTER_1
           lda SCREEN_LINE_OFFSET_TABLE_HI,y
-          sec									; use backup screen now
+          sec
           sbc #( ( ( SCREEN_CHAR - SCREEN_BACK_CHAR ) & 0xff00 ) >> 8 )
           sta ZEROPAGE_POINTER_1 + 1
 
@@ -902,7 +924,7 @@ ObjectMoveLeft
           lda SCREEN_LINE_OFFSET_TABLE_LO,y
           sta ZEROPAGE_POINTER_1
           lda SCREEN_LINE_OFFSET_TABLE_HI,y
-          sec									; use backup screen now
+          sec
           sbc #( ( ( SCREEN_CHAR - SCREEN_BACK_CHAR ) & 0xff00 ) >> 8 )
           sta ZEROPAGE_POINTER_1 + 1
           
@@ -981,7 +1003,7 @@ ObjectMoveRight
           lda SCREEN_LINE_OFFSET_TABLE_LO,y
           sta ZEROPAGE_POINTER_1
           lda SCREEN_LINE_OFFSET_TABLE_HI,y
-          sec								; use backup screen now
+          sec
           sbc #( ( ( SCREEN_CHAR - SCREEN_BACK_CHAR ) & 0xff00 ) >> 8 )
           sta ZEROPAGE_POINTER_1 + 1
 
@@ -1000,7 +1022,7 @@ ObjectMoveRight
           lda SCREEN_LINE_OFFSET_TABLE_LO,y
           sta ZEROPAGE_POINTER_1
           lda SCREEN_LINE_OFFSET_TABLE_HI,y
-          sec								; use backup screen now
+          sec
           sbc #( ( ( SCREEN_CHAR - SCREEN_BACK_CHAR ) & 0xff00 ) >> 8 )
           sta ZEROPAGE_POINTER_1 + 1
           
@@ -1071,7 +1093,7 @@ ObjectMoveUp
           lda SCREEN_LINE_OFFSET_TABLE_LO,y
           sta ZEROPAGE_POINTER_1
           lda SCREEN_LINE_OFFSET_TABLE_HI,y
-          sec								; use backup screen now
+          sec
           sbc #( ( ( SCREEN_CHAR - SCREEN_BACK_CHAR ) & 0xff00 ) >> 8 )
           sta ZEROPAGE_POINTER_1 + 1
 
@@ -1091,7 +1113,7 @@ ObjectMoveUp
           lda SCREEN_LINE_OFFSET_TABLE_LO,y
           sta ZEROPAGE_POINTER_1
           lda SCREEN_LINE_OFFSET_TABLE_HI,y
-          sec							; use backup screen now
+          sec
           sbc #( ( ( SCREEN_CHAR - SCREEN_BACK_CHAR ) & 0xff00 ) >> 8 )
           sta ZEROPAGE_POINTER_1 + 1
           
@@ -1153,7 +1175,7 @@ ObjectMoveDown
           lda SCREEN_LINE_OFFSET_TABLE_LO,y
           sta ZEROPAGE_POINTER_1
           lda SCREEN_LINE_OFFSET_TABLE_HI,y
-          sec								; use backup screen now
+          sec
           sbc #( ( ( SCREEN_CHAR - SCREEN_BACK_CHAR ) & 0xff00 ) >> 8 )
           sta ZEROPAGE_POINTER_1 + 1
 
@@ -1171,7 +1193,7 @@ ObjectMoveDown
           lda SCREEN_LINE_OFFSET_TABLE_LO,y
           sta ZEROPAGE_POINTER_1
           lda SCREEN_LINE_OFFSET_TABLE_HI,y
-          sec								; use backup screen now
+          sec
           sbc #( ( ( SCREEN_CHAR - SCREEN_BACK_CHAR ) & 0xff00 ) >> 8 )
           sta ZEROPAGE_POINTER_1 + 1
           
@@ -1453,26 +1475,81 @@ CalcSpritePosFromCharPos
           sta SPRITE_CHAR_POS_Y_DELTA,x
           rts
 
+
+;------------------------------------------------------------
+;copies the screen data to the back buffer area
+;------------------------------------------------------------
+!zone CopyLevelToBackBuffer
+CopyLevelToBackBuffer
+
+          ldx #$00
+.ClearLoop          
+          lda SCREEN_CHAR,x
+          sta SCREEN_BACK_CHAR,x
+          lda SCREEN_CHAR + 230,x
+          sta SCREEN_BACK_CHAR + 230,x
+          lda SCREEN_CHAR + 460,x
+          sta SCREEN_BACK_CHAR + 460,x
+          lda SCREEN_CHAR + 690,x
+          sta SCREEN_BACK_CHAR + 690,x
+          inx
+          cpx #230
+          bne .ClearLoop
+
+          ldx #$00
+.ColorLoop          
+          lda SCREEN_COLOR,x
+          sta SCREEN_BACK_COLOR,x
+          lda SCREEN_COLOR + 230,x
+          sta SCREEN_BACK_COLOR + 230,x
+          lda SCREEN_COLOR + 460,x
+          sta SCREEN_BACK_COLOR + 460,x
+          lda SCREEN_COLOR + 690,x
+          sta SCREEN_BACK_COLOR + 690,x
+          inx
+          cpx #230
+          bne .ColorLoop
+          
+          rts
+
+
 ;------------------------------------------------------------
 ;BuildScreen
 ;creates a screen from level data
 ;------------------------------------------------------------
 !zone BuildScreen
 BuildScreen
+          lda #0					; set enemies alive to 0
+          sta NUMBER_ENEMIES_ALIVE
+          sta LEVEL_DONE_DELAY		; as well as level done delay
+          
+          ;reset all objects
+          ldx #0
+          lda #0
+.ClearObjectLoop
+          sta SPRITE_ACTIVE,x			; set all sprites to inactive
+          inx
+          cpx #8
+          bne .ClearObjectLoop
+          
+          ;clear screen				; clear the screen
           lda #0
           ldy #6
           jsr ClearPlayScreen
 
           ;get pointer to real level data from table
-          ldx LEVEL_NR
+          lda LEVEL_NR			; convert level nr to index
+          asl					; into screen_data_table
+          tax
           lda SCREEN_DATA_TABLE,x
           sta ZEROPAGE_POINTER_1
           lda SCREEN_DATA_TABLE + 1,x
           sta ZEROPAGE_POINTER_1 + 1
+          beq .NoMoreLevels		; if the high part is 0 then we're out of leves
           
           jsr .BuildLevel
 
-          ;get pointer to real level data from table
+          ;draw level border
           lda #<LEVEL_BORDER_DATA
           sta ZEROPAGE_POINTER_1
           lda #>LEVEL_BORDER_DATA
@@ -1480,6 +1557,12 @@ BuildScreen
           
           jsr .BuildLevel
           rts
+          
+.NoMoreLevels
+          ;loop from first screen
+          lda #0			; go back to level 0
+          sta LEVEL_NR
+          jmp BuildScreen
           
 .BuildLevel
           ;work through data
@@ -1682,6 +1765,15 @@ BuildScreen
           ;5 HP per default
           lda #5
           sta SPRITE_HP,x
+          
+          ;adjust enemy counter
+          ldx PARAM3			; check for enemy type
+          lda IS_TYPE_ENEMY,x
+          beq .NoEnemy
+          
+          inc NUMBER_ENEMIES_ALIVE	; add one to counter if so.
+          
+.NoEnemy
           
 .NoFreeSlot                    
           jmp .NextLevelData
@@ -1939,6 +2031,7 @@ CopySprites
 ;------------------------------------------------------------
 SCREEN_DATA_TABLE
           !word LEVEL_1
+          !word LEVEL_2
           !word 0
           
           
@@ -1954,12 +2047,25 @@ LEVEL_1
           !byte LD_LINE_H,16,12,4,96,13
           !byte LD_LINE_H,12,13,4,96,13
           !byte LD_LINE_H,8,14,4,96,13
-          !byte LD_OBJECT,5,4,TYPE_PLAYER
+          !byte LD_OBJECT,5,4,TYPE_PLAYER			; hello! who's that?
           !byte LD_OBJECT,34,11,TYPE_ENEMY_LR
           !byte LD_OBJECT,31,12,TYPE_ENEMY_LR
           !byte LD_OBJECT,10,18,TYPE_ENEMY_UD
           !byte LD_END
 
+LEVEL_2
+          !byte LD_LINE_H,5,5,10,96,13
+          !byte LD_LINE_H,1,21,38,96,13
+          !byte LD_LINE_H,7,7,3,96,13
+          !byte LD_LINE_H,9,9,3,96,13
+          !byte LD_LINE_H,11,11,3,96,13
+          !byte LD_LINE_H,13,13,3,96,13
+          !byte LD_LINE_H,15,15,3,96,13
+          !byte LD_LINE_H,17,17,3,96,13
+          !byte LD_LINE_H,19,19,3,96,13
+          !byte LD_OBJECT,19,20,TYPE_PLAYER
+          !byte LD_OBJECT,4,5,TYPE_ENEMY_LR
+          !byte LD_END
 
 LEVEL_BORDER_DATA
           !byte LD_LINE_H,0,0,40,128,9
@@ -2017,7 +2123,7 @@ ITEM_POS_X
           !fill ITEM_COUNT,0
 ITEM_POS_Y
           !fill ITEM_COUNT,0
-          							; removed backup tables here
+          
 ENEMY_BEHAVIOUR_TABLE_LO          
           !byte <PlayerControl
           !byte <BehaviourDumbEnemyLR
@@ -2029,10 +2135,17 @@ ENEMY_BEHAVIOUR_TABLE_HI
           !byte >BehaviourDumbEnemyUD
           
 IS_TYPE_ENEMY
-          !byte 0     ;dummy entry
+          !byte 0     ;dummy entry for inactive object
           !byte 0     ;player
           !byte 1     ;enemy_lr
           !byte 1     ;enemy_ud
+          
+NUMBER_ENEMIES_ALIVE			; number of live enemies
+          !byte 0
+LEVEL_DONE_DELAY				; wait after all enemies are dead
+          !byte 0
+DELAYED_GENERIC_COUNTER			; some counter...
+          !byte 0
           
 ITEM_CHAR_UL
           !byte 4,8
