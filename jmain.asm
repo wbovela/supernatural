@@ -16,6 +16,12 @@ ZEROPAGE_POINTER_2      = $19
 ZEROPAGE_POINTER_3      = $21
 ZEROPAGE_POINTER_4      = $23
 
+KERNAL_GETIN            = $ffe4
+KERNAL_SETMSG           = $ff90
+KERNAL_SETLFS           = $ffba
+KERNAL_SETNAM           = $ffbd
+KERNAL_LOAD             = $ffd5
+
 VIC_SPRITE_X_POS        = $d000
 VIC_SPRITE_Y_POS        = $d001
 VIC_SPRITE_X_EXTEND     = $d010
@@ -53,12 +59,33 @@ SCREEN_BACK_COLOR       = $C400
 SPRITE_POINTER_BASE     = SCREEN_CHAR + 1016
 
 ;number of sprites divided by four
-NUMBER_OF_SPRITES_DIV_4 = 1
+NUMBER_OF_SPRITES_DIV_4 = 6
 
 ;sprite number constant
 SPRITE_BASE             = 64
 
 SPRITE_PLAYER           = SPRITE_BASE + 0
+SPRITE_ENEMY            = SPRITE_BASE + 1
+SPRITE_PLAYER_STAND_R   = SPRITE_BASE + 2
+SPRITE_PLAYER_STAND_L   = SPRITE_BASE + 3
+SPRITE_PLAYER_STAND_RECOIL_R   = SPRITE_BASE + 4
+SPRITE_PLAYER_STAND_RECOIL_L   = SPRITE_BASE + 5
+SPRITE_PLAYER_WALK_R_1  = SPRITE_BASE + 6
+SPRITE_PLAYER_WALK_L_1  = SPRITE_BASE + 7
+SPRITE_PLAYER_WALK_R_2  = SPRITE_BASE + 8
+SPRITE_PLAYER_WALK_L_2  = SPRITE_BASE + 9
+SPRITE_PLAYER_WALK_R_3  = SPRITE_BASE + 10
+SPRITE_PLAYER_WALK_L_3  = SPRITE_BASE + 11
+SPRITE_PLAYER_WALK_R_4  = SPRITE_BASE + 12
+SPRITE_PLAYER_WALK_L_4  = SPRITE_BASE + 13
+SPRITE_PLAYER_JUMP_R    = SPRITE_BASE + 6
+SPRITE_PLAYER_JUMP_L    = SPRITE_BASE + 7
+SPRITE_PLAYER_FALL_R    = SPRITE_BASE + 12
+SPRITE_PLAYER_FALL_L    = SPRITE_BASE + 13
+SPRITE_PLAYER_JUMP_RECOIL_R    = SPRITE_BASE + 14
+SPRITE_PLAYER_JUMP_RECOIL_L    = SPRITE_BASE + 15
+SPRITE_PLAYER_FALL_RECOIL_R    = SPRITE_BASE + 20
+SPRITE_PLAYER_FALL_RECOIL_L    = SPRITE_BASE + 21
 
 ;offset from calculated char pos to true sprite pos
 SPRITE_CENTER_OFFSET_X  = 8
@@ -170,6 +197,13 @@ ITEM_COUNT              = 8
           lda #0
           sta VIC_SPRITE_X_EXTEND
           sta VIC_SPRITE_ENABLE
+          sta VIC_SPRITE_MULTICOLOR
+          
+          ;sprite multi colors
+          lda #11
+          sta VIC_SPRITE_MULTICOLOR_1
+          lda #1
+          sta VIC_SPRITE_MULTICOLOR_2
 
           ;game start values
           lda #3
@@ -200,12 +234,18 @@ ITEM_COUNT              = 8
 
 GameLoop  
           jsr WaitFrame
+
+          lda #1
+          sta VIC_BORDER_COLOR
           
           jsr GameFlowControl
           jsr DeadControl
 
           jsr ObjectControl
           jsr CheckCollisions
+
+          lda #0
+          sta VIC_BORDER_COLOR
           
           jmp GameLoop          
           
@@ -279,6 +319,7 @@ DeadControl
           rts
           
 .Restart
+          ;TODO - respawn at correct position!
           lda #5
           sta PARAM1 
           
@@ -472,11 +513,10 @@ PlayerControl
           jmp .ItemLoop
           
 .LastItemReached          
+
+          ;handle shooting/shoot pause
           lda PLAYER_SHOT_PAUSE
           bne .FirePauseActive
-          
-          lda #1
-          sta VIC_SPRITE_COLOR
           
           lda #$10
           bit $dc00
@@ -491,8 +531,10 @@ PlayerControl
 .FireDone
 .NotFirePushed
           lda PLAYER_JUMP_POS
-          bne .PlayerIsJumping
+          beq .NotJumping
+          jmp .PlayerIsJumping
 
+.NotJumping
           jsr PlayerMoveDown
           beq .NotFalling
           
@@ -507,6 +549,7 @@ PlayerControl
 .NotFalling          
           lda #0
           sta PLAYER_FALL_POS
+          sta SPRITE_FALLING
           
 .NotDownPressed          
           lda #$01
@@ -516,6 +559,9 @@ PlayerControl
           jmp .PlayerIsJumping
           
 .PlayerFell
+          lda #1
+          sta SPRITE_FALLING
+          
           ldx PLAYER_FALL_POS
           lda FALL_SPEED_TABLE,x
           beq .FallComplete
@@ -543,16 +589,123 @@ PlayerControl
           bit $dc00
           bne .NotLeftPressed
           jsr PlayerMoveLeft
+          jsr PlayerMoveLeft
           
+          ;animate player
+          lda SPRITE_FALLING
+          bne .NoAnimLNeeded
+          lda PLAYER_JUMP_POS
+          bne .NoAnimLNeeded
+          
+          inc SPRITE_ANIM_DELAY
+          lda SPRITE_ANIM_DELAY
+          cmp #8
+          bne .NoAnimLNeeded
+          
+          lda #0
+          sta SPRITE_ANIM_DELAY
+          
+          inc SPRITE_ANIM_POS
+          lda SPRITE_ANIM_POS
+          and #$03
+          sta SPRITE_ANIM_POS
+          
+.NoAnimLNeeded          
 .NotLeftPressed
           lda #$08
           bit $dc00
           bne .NotRightPressed
           jsr PlayerMoveRight
+          jsr PlayerMoveRight
 
+          ;animate player
+          lda SPRITE_FALLING
+          bne .NoAnimRNeeded
+          lda PLAYER_JUMP_POS
+          bne .NoAnimRNeeded
+          
+          inc SPRITE_ANIM_DELAY
+          lda SPRITE_ANIM_DELAY
+          cmp #8
+          bne .NoAnimRNeeded
+          
+          lda #0
+          sta SPRITE_ANIM_DELAY
+          
+          inc SPRITE_ANIM_POS
+          lda SPRITE_ANIM_POS
+          and #$03
+          sta SPRITE_ANIM_POS
+
+.NoAnimRNeeded          
 .NotRightPressed
           ;restore x
           ldx #0
+
+          ;update player animation
+          lda SPRITE_FALLING
+          bne .AnimFalling
+
+          lda PLAYER_JUMP_POS
+          bne .AnimJumping
+          
+          ;is player shooting?
+          lda PLAYER_SHOT_PAUSE
+          beq .AnimNoRecoil
+
+          ;recoil anim          
+          lda SPRITE_ANIM_POS
+          asl
+          clc
+          adc SPRITE_DIRECTION
+          adc #SPRITE_PLAYER_WALK_R_1
+          adc #8
+          sta SPRITE_POINTER_BASE
+          
+          rts
+          
+.AnimNoRecoil          
+          
+          lda SPRITE_ANIM_POS
+          asl
+          clc
+          adc SPRITE_DIRECTION
+          adc #SPRITE_PLAYER_WALK_R_1
+          sta SPRITE_POINTER_BASE
+          rts
+          
+.AnimFalling
+          lda PLAYER_SHOT_PAUSE
+          bne .AnimFallingNoRecoil
+
+          lda #SPRITE_PLAYER_FALL_R
+          clc
+          adc SPRITE_DIRECTION
+          sta SPRITE_POINTER_BASE
+          rts
+          
+.AnimFallingNoRecoil          
+          lda #SPRITE_PLAYER_FALL_RECOIL_R
+          clc
+          adc SPRITE_DIRECTION
+          sta SPRITE_POINTER_BASE
+          rts
+          
+.AnimJumping          
+          lda PLAYER_SHOT_PAUSE
+          bne .AnimJumpingNoRecoil
+
+          lda #SPRITE_PLAYER_JUMP_R
+          clc
+          adc SPRITE_DIRECTION
+          sta SPRITE_POINTER_BASE
+          rts
+          
+.AnimJumpingNoRecoil          
+          lda #SPRITE_PLAYER_JUMP_RECOIL_R
+          clc
+          adc SPRITE_DIRECTION
+          sta SPRITE_POINTER_BASE
           rts
 
 .PlayerIsJumping
@@ -569,7 +722,10 @@ PlayerControl
           ldx PLAYER_JUMP_POS
           
           lda PLAYER_JUMP_TABLE,x
-          beq .JumpComplete
+          bne .KeepJumping
+          jmp .JumpComplete
+          
+.KeepJumping          
           sta PARAM5
           
 .JumpContinue          
@@ -657,7 +813,6 @@ PutItemImage
 
 ;------------------------------------------------------------
 ;remove item image from screen
-;PARAM1 = 
 ;Y = item index
 ;------------------------------------------------------------
 !zone RemoveItemImage
@@ -742,10 +897,6 @@ FireShot
           ;frame delay until next shot
           lda #10
           sta PLAYER_SHOT_PAUSE
-          
-          ;mark player as shooting
-          lda #4
-          sta VIC_SPRITE_COLOR
           
           ldy SPRITE_CHAR_POS_Y
           dey
@@ -896,11 +1047,19 @@ SpawnItem
 ;------------------------------------------------------------
 !zone PlayerMoveLeft
 PlayerMoveLeft  
+          lda SPRITE_DIRECTION
+          bne .Move
+          
+          ;direction changed
           lda #1
           sta SPRITE_DIRECTION
-          ldx #0
           
-          ;jmp ObjectMoveLeft
+          ;lda #SPRITE_PLAYER_STAND_L
+          ;sta SPRITE_POINTER_BASE
+          
+.Move
+          ldx #0
+          ;fall through
 
           
 ;------------------------------------------------------------
@@ -984,12 +1143,19 @@ ObjectMoveLeft
 ;------------------------------------------------------------
 !zone PlayerMoveRight
 PlayerMoveRight
+          lda SPRITE_DIRECTION
+          beq .Move
+          
+          ;direction changed
           lda #0
           sta SPRITE_DIRECTION
           
-          ldx #0
+          lda #SPRITE_PLAYER_STAND_R
+          sta SPRITE_POINTER_BASE
 
-          jmp ObjectMoveRight
+.Move          
+          ldx #0
+          ;fall through
           
                     
 ;------------------------------------------------------------
@@ -1553,9 +1719,21 @@ BuildScreen
           lda #0
 .ClearObjectLoop
           sta SPRITE_ACTIVE,x
+          sta SPRITE_FALLING,x
+          sta SPRITE_ANIM_POS,x
+          sta SPRITE_ANIM_DELAY,x
           inx
           cpx #8
           bne .ClearObjectLoop
+          
+          ;reset all items
+          ldx #0
+          lda #ITEM_NONE
+.ClearItemLoop
+          sta ITEM_ACTIVE,x
+          inx
+          cpx #ITEM_COUNT
+          bne .ClearItemLoop
           
           ;clear screen
           lda #0
@@ -1778,9 +1956,30 @@ BuildScreen
           lda BIT_TABLE,x
           ora VIC_SPRITE_ENABLE
           sta VIC_SPRITE_ENABLE
+
+          ;sprite color
+          ldy SPRITE_ACTIVE,x
+          lda TYPE_START_COLOR,y
+          sta VIC_SPRITE_COLOR,x
+          
+          lda TYPE_START_MULTICOLOR,y
+          beq .NoMulticolor
+          
+          lda BIT_TABLE,x
+          ora VIC_SPRITE_MULTICOLOR
+          sta VIC_SPRITE_MULTICOLOR
+          jmp .MultiColorDone
+          
+.NoMulticolor          
+          lda BIT_TABLE,x
+          eor #$ff
+          and VIC_SPRITE_MULTICOLOR
+          sta VIC_SPRITE_MULTICOLOR
+
+.MultiColorDone      
           
           ;initialise enemy values
-          lda #SPRITE_PLAYER
+          lda TYPE_START_SPRITE,y
           sta SPRITE_POINTER_BASE,x
           
           ;look right per default
@@ -2176,6 +2375,7 @@ LEVEL_1
           !byte LD_LINE_H,16,12,4,96,13
           !byte LD_LINE_H,12,13,4,96,13
           !byte LD_LINE_H,8,14,4,96,13
+          !byte LD_LINE_H,6,16,5,96,13
           !byte LD_OBJECT,5,4,TYPE_PLAYER
           !byte LD_OBJECT,34,11,TYPE_ENEMY_LR
           !byte LD_OBJECT,31,12,TYPE_ENEMY_LR
@@ -2217,7 +2417,7 @@ BUTTON_RELEASED
 PLAYER_JUMP_POS
           !byte 0
 PLAYER_JUMP_TABLE
-          !byte 8,7,5,3,2,1,1,1,0,0
+          !byte 8,8,7,5,3,2,1,1,1,0
 PLAYER_FALL_POS
           !byte 0
 FALL_SPEED_TABLE
@@ -2247,6 +2447,13 @@ SPRITE_ACTIVE
           !byte 0,0,0,0,0,0,0,0
 SPRITE_DIRECTION
           !byte 0,0,0,0,0,0,0,0
+SPRITE_FALLING
+          !byte 0,0,0,0,0,0,0,0
+SPRITE_ANIM_POS
+          !byte 0,0,0,0,0,0,0,0
+SPRITE_ANIM_DELAY
+          !byte 0,0,0,0,0,0,0,0
+          
           
 ITEM_ACTIVE
           !fill ITEM_COUNT,ITEM_NONE
@@ -2270,6 +2477,24 @@ IS_TYPE_ENEMY
           !byte 0     ;player
           !byte 1     ;enemy_lr
           !byte 1     ;enemy_ud
+          
+TYPE_START_SPRITE
+          !byte 0     ;dummy entry for inactive object
+          !byte SPRITE_PLAYER_STAND_R
+          !byte SPRITE_ENEMY
+          !byte SPRITE_ENEMY
+          
+TYPE_START_COLOR
+          !byte 0
+          !byte 10
+          !byte 2
+          !byte 2
+          
+TYPE_START_MULTICOLOR
+          !byte 0
+          !byte 1
+          !byte 0
+          !byte 0
           
 NUMBER_ENEMIES_ALIVE
           !byte 0
