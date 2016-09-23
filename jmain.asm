@@ -65,7 +65,7 @@ NUMBER_OF_SPRITES_DIV_4 = 6
 SPRITE_BASE             = 64
 
 SPRITE_PLAYER           = SPRITE_BASE + 0
-SPRITE_ENEMY            = SPRITE_BASE + 1
+SPRITE_BAT_1            = SPRITE_BASE + 1
 SPRITE_PLAYER_STAND_R   = SPRITE_BASE + 2
 SPRITE_PLAYER_STAND_L   = SPRITE_BASE + 3
 SPRITE_PLAYER_STAND_RECOIL_R   = SPRITE_BASE + 4
@@ -87,6 +87,9 @@ SPRITE_PLAYER_JUMP_RECOIL_L    = SPRITE_BASE + 15
 SPRITE_PLAYER_FALL_RECOIL_R    = SPRITE_BASE + 20
 SPRITE_PLAYER_FALL_RECOIL_L    = SPRITE_BASE + 21
 
+SPRITE_BAT_2            = SPRITE_BASE + 22
+SPRITE_BAT_3            = SPRITE_BASE + 23
+
 ;offset from calculated char pos to true sprite pos
 SPRITE_CENTER_OFFSET_X  = 8
 SPRITE_CENTER_OFFSET_Y  = 11
@@ -106,8 +109,9 @@ LD_OBJECT               = 3     ;data contains x,y,type
 
 ;object type constants
 TYPE_PLAYER             = 1
-TYPE_ENEMY_LR           = 2
-TYPE_ENEMY_UD           = 3
+TYPE_BAT_LR             = 2
+TYPE_BAT_UD             = 3
+TYPE_BAT_8              = 4
 
 OBJECT_HEIGHT           = 8 * 2
 
@@ -1438,8 +1442,22 @@ ObjectControl
 ;------------------------------------------------------------
 ;simply move left/right
 ;------------------------------------------------------------
-!zone BehaviourDumbEnemyLR
-BehaviourDumbEnemyLR
+!zone BehaviourBatLR
+BehaviourBatLR
+          lda DELAYED_GENERIC_COUNTER
+          and #$03
+          bne .NoAnimUpdate
+          
+          inc SPRITE_ANIM_POS,x
+          lda SPRITE_ANIM_POS,x
+          and #$03
+          sta SPRITE_ANIM_POS,x
+          
+          tay
+          lda BAT_ANIMATION,y
+          sta SPRITE_POINTER_BASE,x
+          
+.NoAnimUpdate          
           lda SPRITE_DIRECTION,x
           beq .MoveRight
           
@@ -1463,8 +1481,22 @@ BehaviourDumbEnemyLR
 ;------------------------------------------------------------
 ;simply move up/down
 ;------------------------------------------------------------
-!zone BehaviourDumbEnemyUD
-BehaviourDumbEnemyUD
+!zone BehaviourBatUD
+BehaviourBatUD
+          lda DELAYED_GENERIC_COUNTER
+          and #$03
+          bne .NoAnimUpdate
+          
+          inc SPRITE_ANIM_POS,x
+          lda SPRITE_ANIM_POS,x
+          and #$03
+          sta SPRITE_ANIM_POS,x
+          
+          tay
+          lda BAT_ANIMATION,y
+          sta SPRITE_POINTER_BASE,x
+          
+.NoAnimUpdate          
           lda SPRITE_DIRECTION,x
           beq .MoveDown
           
@@ -1485,6 +1517,81 @@ BehaviourDumbEnemyUD
           rts
           
 
+;------------------------------------------------------------
+;move in flat 8
+;------------------------------------------------------------
+!zone BehaviourBat8
+BehaviourBat8
+          lda DELAYED_GENERIC_COUNTER
+          and #$03
+          bne .NoAnimUpdate
+          
+          inc SPRITE_ANIM_POS,x
+          lda SPRITE_ANIM_POS,x
+          and #$03
+          sta SPRITE_ANIM_POS,x
+          
+          tay
+          lda BAT_ANIMATION,y
+          sta SPRITE_POINTER_BASE,x
+          
+.NoAnimUpdate          
+
+          inc SPRITE_MOVE_POS,x
+          lda SPRITE_MOVE_POS,x
+          and #31
+          sta SPRITE_MOVE_POS,x
+          
+          tay
+          lda PATH_8_DX,y
+          beq .NoXMoveNeeded
+          sta PARAM1
+          and #$80
+          beq .MoveRight
+          
+          ;move left
+          lda PARAM1
+          and #$7f
+          sta PARAM1
+.MoveLeft          
+          jsr MoveSpriteLeft
+          dec PARAM1
+          bne .MoveLeft
+          jmp .XMoveDone
+          
+.MoveRight
+          jsr MoveSpriteRight
+          dec PARAM1
+          bne .MoveRight
+          
+.NoXMoveNeeded          
+.XMoveDone
+          ldy SPRITE_MOVE_POS,x
+          lda PATH_8_DY,y
+          beq .NoYMoveNeeded
+          sta PARAM1
+          and #$80
+          beq .MoveDown
+          
+          ;move up
+          lda PARAM1
+          and #$7f
+          sta PARAM1
+.MoveUp   
+          jsr MoveSpriteUp
+          dec PARAM1
+          bne .MoveUp
+          rts
+          
+.MoveDown
+          jsr MoveSpriteDown
+          dec PARAM1
+          bne .MoveDown
+
+.NoYMoveNeeded
+          rts
+          
+ 
 ;------------------------------------------------------------
 ;Move Sprite Left
 ;expect x as sprite index (0 to 7)
@@ -1985,6 +2092,9 @@ BuildScreen
           ;look right per default
           lda #0
           sta SPRITE_DIRECTION,x
+          sta SPRITE_ANIM_POS,x
+          sta SPRITE_ANIM_DELAY,x
+          sta SPRITE_MOVE_POS,x
           
           ;5 HP per default
           lda #5
@@ -2377,9 +2487,9 @@ LEVEL_1
           !byte LD_LINE_H,8,14,4,96,13
           !byte LD_LINE_H,6,16,5,96,13
           !byte LD_OBJECT,5,4,TYPE_PLAYER
-          !byte LD_OBJECT,34,11,TYPE_ENEMY_LR
-          !byte LD_OBJECT,31,12,TYPE_ENEMY_LR
-          !byte LD_OBJECT,10,18,TYPE_ENEMY_UD
+          !byte LD_OBJECT,34,11,TYPE_BAT_LR
+          !byte LD_OBJECT,31,12,TYPE_BAT_8
+          !byte LD_OBJECT,10,18,TYPE_BAT_UD
           !byte LD_END
 
 LEVEL_2
@@ -2393,7 +2503,7 @@ LEVEL_2
           !byte LD_LINE_H,17,17,3,96,13
           !byte LD_LINE_H,19,19,3,96,13
           !byte LD_OBJECT,19,20,TYPE_PLAYER
-          !byte LD_OBJECT,4,5,TYPE_ENEMY_LR
+          !byte LD_OBJECT,4,5,TYPE_BAT_LR
           !byte LD_END
 
 LEVEL_BORDER_DATA
@@ -2453,6 +2563,8 @@ SPRITE_ANIM_POS
           !byte 0,0,0,0,0,0,0,0
 SPRITE_ANIM_DELAY
           !byte 0,0,0,0,0,0,0,0
+SPRITE_MOVE_POS
+          !byte 0,0,0,0,0,0,0,0
           
           
 ITEM_ACTIVE
@@ -2464,36 +2576,121 @@ ITEM_POS_Y
           
 ENEMY_BEHAVIOUR_TABLE_LO          
           !byte <PlayerControl
-          !byte <BehaviourDumbEnemyLR
-          !byte <BehaviourDumbEnemyUD
+          !byte <BehaviourBatLR
+          !byte <BehaviourBatUD
+          !byte <BehaviourBat8
           
 ENEMY_BEHAVIOUR_TABLE_HI
           !byte >PlayerControl
-          !byte >BehaviourDumbEnemyLR
-          !byte >BehaviourDumbEnemyUD
+          !byte >BehaviourBatLR
+          !byte >BehaviourBatUD
+          !byte >BehaviourBat8
           
 IS_TYPE_ENEMY
           !byte 0     ;dummy entry for inactive object
           !byte 0     ;player
-          !byte 1     ;enemy_lr
-          !byte 1     ;enemy_ud
+          !byte 1     ;bat_lr
+          !byte 1     ;bat_ud
+          !byte 1     ;bat 8
           
 TYPE_START_SPRITE
           !byte 0     ;dummy entry for inactive object
           !byte SPRITE_PLAYER_STAND_R
-          !byte SPRITE_ENEMY
-          !byte SPRITE_ENEMY
+          !byte SPRITE_BAT_1
+          !byte SPRITE_BAT_1
+          !byte SPRITE_BAT_2
           
 TYPE_START_COLOR
           !byte 0
           !byte 10
-          !byte 2
-          !byte 2
+          !byte 3
+          !byte 3
+          !byte 8
           
 TYPE_START_MULTICOLOR
           !byte 0
           !byte 1
           !byte 0
+          !byte 0
+          !byte 0
+          
+BAT_ANIMATION
+          !byte SPRITE_BAT_1
+          !byte SPRITE_BAT_2
+          !byte SPRITE_BAT_3
+          !byte SPRITE_BAT_2
+PATH_8_DX
+          !byte $86
+          !byte $86
+          !byte $85
+          !byte $84
+          !byte $83
+          !byte $82
+          !byte $81
+          !byte 0
+          
+          !byte 0
+          !byte 1
+          !byte 2
+          !byte 3
+          !byte 4
+          !byte 5
+          !byte 6
+          !byte 6
+
+          !byte 6
+          !byte 6
+          !byte 5
+          !byte 4
+          !byte 3
+          !byte 2
+          !byte 1
+          !byte 0
+          
+          !byte 0
+          !byte $81
+          !byte $82
+          !byte $83
+          !byte $84
+          !byte $85
+          !byte $86
+          !byte $86
+          
+PATH_8_DY
+          !byte 0
+          !byte 1
+          !byte 2
+          !byte 3
+          !byte 4
+          !byte 5
+          !byte 6
+          !byte 6
+
+          !byte 6
+          !byte 6
+          !byte 5
+          !byte 4
+          !byte 3
+          !byte 2
+          !byte 1
+          !byte 0
+          
+          !byte 0
+          !byte $81
+          !byte $82
+          !byte $83
+          !byte $84
+          !byte $85
+          !byte $86
+          !byte $86
+          
+          !byte $86
+          !byte $86
+          !byte $85
+          !byte $84
+          !byte $83
+          !byte $82
+          !byte $81
           !byte 0
           
 NUMBER_ENEMIES_ALIVE
