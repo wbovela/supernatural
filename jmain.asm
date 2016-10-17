@@ -59,7 +59,7 @@ SCREEN_BACK_COLOR       = $C400
 SPRITE_POINTER_BASE     = SCREEN_CHAR + 1016
 
 ;number of sprites divided by four
-NUMBER_OF_SPRITES_DIV_4 = 6
+NUMBER_OF_SPRITES_DIV_4 = 7
 
 ;sprite number constant
 SPRITE_BASE             = 64
@@ -90,6 +90,9 @@ SPRITE_PLAYER_FALL_RECOIL_L    = SPRITE_BASE + 21
 SPRITE_BAT_2            = SPRITE_BASE + 22
 SPRITE_BAT_3            = SPRITE_BASE + 23
 
+SPRITE_MUMMY_R_1        = SPRITE_BASE + 24
+SPRITE_MUMMY_R_2        = SPRITE_BASE + 25
+
 ;offset from calculated char pos to true sprite pos
 SPRITE_CENTER_OFFSET_X  = 8
 SPRITE_CENTER_OFFSET_Y  = 11
@@ -112,6 +115,7 @@ TYPE_PLAYER             = 1
 TYPE_BAT_LR             = 2
 TYPE_BAT_UD             = 3
 TYPE_BAT_8              = 4
+TYPE_MUMMY              = 5
 
 OBJECT_HEIGHT           = 8 * 2
 
@@ -323,6 +327,41 @@ DeadControl
           rts
           
 .Restart
+          ;remove restart message
+          lda #10
+          sta PARAM1
+          
+          ldy #11
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+          sta ZEROPAGE_POINTER_1
+          sta ZEROPAGE_POINTER_2
+          sta ZEROPAGE_POINTER_3
+          sta ZEROPAGE_POINTER_4
+          lda SCREEN_LINE_OFFSET_TABLE_HI,y
+          sta ZEROPAGE_POINTER_1 + 1
+          clc
+          adc #( ( SCREEN_COLOR - SCREEN_CHAR ) & 0xff00 ) >> 8
+          sta ZEROPAGE_POINTER_2 + 1
+          sec
+          sbc #( ( SCREEN_COLOR - SCREEN_BACK_CHAR ) & 0xff00 ) >> 8
+          sta ZEROPAGE_POINTER_3 + 1
+          sec
+          sbc #( ( SCREEN_BACK_CHAR - SCREEN_BACK_COLOR ) & 0xff00 ) >> 8
+          sta ZEROPAGE_POINTER_4 + 1
+          
+          ldy #10
+          
+.ReplaceChar          
+          lda (ZEROPAGE_POINTER_4),y
+          sta (ZEROPAGE_POINTER_2),y
+          lda (ZEROPAGE_POINTER_3),y
+          sta (ZEROPAGE_POINTER_1),y
+          
+          iny
+          cpy #32
+          bne .ReplaceChar
+          
+
           ;TODO - respawn at correct position!
           lda #5
           sta PARAM1 
@@ -395,7 +434,7 @@ CheckCollisions
           sta ZEROPAGE_POINTER_1 + 1
           lda #10
           sta PARAM1
-          lda #24
+          lda #11
           sta PARAM2
           jsr DisplayText
           
@@ -906,9 +945,7 @@ FireShot
           dey
           lda SCREEN_LINE_OFFSET_TABLE_LO,y
           sta ZEROPAGE_POINTER_1
-          lda SCREEN_LINE_OFFSET_TABLE_HI,y
-          sec
-          sbc #( ( ( SCREEN_CHAR - SCREEN_BACK_CHAR ) & 0xff00 ) >> 8 )
+          lda SCREEN_BACK_LINE_OFFSET_TABLE_HI,y
           sta ZEROPAGE_POINTER_1 + 1
           
           ldy SPRITE_CHAR_POS_X
@@ -1070,8 +1107,8 @@ PlayerMoveLeft
 ;move object left if not blocked
 ;x = object index
 ;------------------------------------------------------------
-!zone ObjectMoveLeft
-ObjectMoveLeft          
+!zone ObjectMoveLeftBlocking
+ObjectMoveLeftBlocking
           
           lda SPRITE_CHAR_POS_X_DELTA,x
           beq .CheckCanMoveLeft
@@ -1090,9 +1127,7 @@ ObjectMoveLeft
           ldy SPRITE_CHAR_POS_Y,x
           lda SCREEN_LINE_OFFSET_TABLE_LO,y
           sta ZEROPAGE_POINTER_1
-          lda SCREEN_LINE_OFFSET_TABLE_HI,y
-          sec
-          sbc #( ( ( SCREEN_CHAR - SCREEN_BACK_CHAR ) & 0xff00 ) >> 8 )
+          lda SCREEN_BACK_LINE_OFFSET_TABLE_HI,y
           sta ZEROPAGE_POINTER_1 + 1
 
           lda SPRITE_CHAR_POS_X,x
@@ -1110,9 +1145,95 @@ ObjectMoveLeft
           dey
           lda SCREEN_LINE_OFFSET_TABLE_LO,y
           sta ZEROPAGE_POINTER_1
-          lda SCREEN_LINE_OFFSET_TABLE_HI,y
-          sec
-          sbc #( ( ( SCREEN_CHAR - SCREEN_BACK_CHAR ) & 0xff00 ) >> 8 )
+          lda SCREEN_BACK_LINE_OFFSET_TABLE_HI,y
+          sta ZEROPAGE_POINTER_1 + 1
+          
+          ldy SPRITE_CHAR_POS_X,x
+          dey
+          
+          lda (ZEROPAGE_POINTER_1),y
+          
+          jsr IsCharBlocking
+          bne .BlockedLeft
+          
+          tya
+          clc
+          adc #40
+          tay
+          lda (ZEROPAGE_POINTER_1),y
+          jsr IsCharBlocking
+          bne .BlockedLeft
+          
+          
+          lda #8
+          sta SPRITE_CHAR_POS_X_DELTA,x
+          dec SPRITE_CHAR_POS_X,x
+          jmp .CanMoveLeft
+          
+.BlockedLeft
+          lda #0
+          rts
+
+          
+;------------------------------------------------------------
+;move object left
+;x = object index
+;------------------------------------------------------------
+!zone ObjectMoveLeft
+ObjectMoveLeft
+          
+          lda SPRITE_CHAR_POS_X_DELTA,x
+          bne .NoCharStep
+          
+          lda #8
+          sta SPRITE_CHAR_POS_X_DELTA,x
+          dec SPRITE_CHAR_POS_X,x
+          
+.NoCharStep
+          dec SPRITE_CHAR_POS_X_DELTA,x
+          
+          jsr MoveSpriteLeft
+          rts
+          
+          
+;------------------------------------------------------------
+;walk object left if not blocked and do not fall off
+;x = object index
+;------------------------------------------------------------
+!zone ObjectWalkLeft
+ObjectWalkLeft          
+          
+          lda SPRITE_CHAR_POS_X_DELTA,x
+          beq .CheckCanMoveLeft
+          
+.CanMoveLeft
+          dec SPRITE_CHAR_POS_X_DELTA,x
+          
+          jsr MoveSpriteLeft
+          lda #1
+          rts
+          
+.CheckCanMoveLeft
+          ldy SPRITE_CHAR_POS_Y,x
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+          sta ZEROPAGE_POINTER_1
+          lda SCREEN_BACK_LINE_OFFSET_TABLE_HI,y
+          sta ZEROPAGE_POINTER_1 + 1
+
+          lda SPRITE_CHAR_POS_X,x
+          clc
+          adc #39
+          tay
+          
+          lda (ZEROPAGE_POINTER_1),y
+          jsr IsCharBlockingFall
+          beq .BlockedLeft
+          
+          ldy SPRITE_CHAR_POS_Y,x
+          dey
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+          sta ZEROPAGE_POINTER_1
+          lda SCREEN_BACK_LINE_OFFSET_TABLE_HI,y
           sta ZEROPAGE_POINTER_1 + 1
           
           ldy SPRITE_CHAR_POS_X,x
@@ -1166,8 +1287,8 @@ PlayerMoveRight
 ;move object right if not blocked
 ;x = object index
 ;------------------------------------------------------------
-!zone ObjectMoveRight
-ObjectMoveRight
+!zone ObjectMoveRightBlocking
+ObjectMoveRightBlocking
                     
           lda SPRITE_CHAR_POS_X_DELTA,x
           beq .CheckCanMoveRight
@@ -1196,9 +1317,7 @@ ObjectMoveRight
           iny
           lda SCREEN_LINE_OFFSET_TABLE_LO,y
           sta ZEROPAGE_POINTER_1
-          lda SCREEN_LINE_OFFSET_TABLE_HI,y
-          sec
-          sbc #( ( ( SCREEN_CHAR - SCREEN_BACK_CHAR ) & 0xff00 ) >> 8 )
+          lda SCREEN_BACK_LINE_OFFSET_TABLE_HI,y
           sta ZEROPAGE_POINTER_1 + 1
 
           ldy SPRITE_CHAR_POS_X,x
@@ -1215,9 +1334,99 @@ ObjectMoveRight
           dey
           lda SCREEN_LINE_OFFSET_TABLE_LO,y
           sta ZEROPAGE_POINTER_1
-          lda SCREEN_LINE_OFFSET_TABLE_HI,y
-          sec
-          sbc #( ( ( SCREEN_CHAR - SCREEN_BACK_CHAR ) & 0xff00 ) >> 8 )
+          lda SCREEN_BACK_LINE_OFFSET_TABLE_HI,y
+          sta ZEROPAGE_POINTER_1 + 1
+          
+          ldy SPRITE_CHAR_POS_X,x
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          
+          jsr IsCharBlocking
+          bne .BlockedRight
+          
+          tya
+          clc
+          adc #40
+          tay
+          lda (ZEROPAGE_POINTER_1),y
+          jsr IsCharBlocking
+          bne .BlockedRight
+          
+          jmp .CanMoveRight
+          
+.BlockedRight 
+          lda #0
+          rts
+          
+
+;------------------------------------------------------------
+;move object right
+;x = object index
+;------------------------------------------------------------
+!zone ObjectMoveRight
+ObjectMoveRight
+                    
+          inc SPRITE_CHAR_POS_X_DELTA,x
+          
+          lda SPRITE_CHAR_POS_X_DELTA,x
+          cmp #8
+          bne .NoCharStep
+          
+          lda #0
+          sta SPRITE_CHAR_POS_X_DELTA,x
+          inc SPRITE_CHAR_POS_X,x
+          
+.NoCharStep          
+          jsr MoveSpriteRight
+          rts
+          
+          
+;------------------------------------------------------------
+;walk object right if not blocked, do not fall off
+;x = object index
+;------------------------------------------------------------
+!zone ObjectWalkRight
+ObjectWalkRight
+                    
+          lda SPRITE_CHAR_POS_X_DELTA,x
+          beq .CheckCanMoveRight
+          
+.CanMoveRight
+          inc SPRITE_CHAR_POS_X_DELTA,x
+          
+          lda SPRITE_CHAR_POS_X_DELTA,x
+          cmp #8
+          bne .NoCharStep
+          
+          lda #0
+          sta SPRITE_CHAR_POS_X_DELTA,x
+          inc SPRITE_CHAR_POS_X,x
+          
+.NoCharStep          
+          jsr MoveSpriteRight
+          lda #1
+          rts
+          
+.CheckCanMoveRight
+          ldy SPRITE_CHAR_POS_Y,x
+          iny
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+          sta ZEROPAGE_POINTER_1
+          lda SCREEN_BACK_LINE_OFFSET_TABLE_HI,y
+          sta ZEROPAGE_POINTER_1 + 1
+
+          ldy SPRITE_CHAR_POS_X,x
+          iny
+
+          lda (ZEROPAGE_POINTER_1),y
+          jsr IsCharBlockingFall
+          beq .BlockedRight
+          
+          ldy SPRITE_CHAR_POS_Y,x
+          dey
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+          sta ZEROPAGE_POINTER_1
+          lda SCREEN_BACK_LINE_OFFSET_TABLE_HI,y
           sta ZEROPAGE_POINTER_1 + 1
           
           ldy SPRITE_CHAR_POS_X,x
@@ -1249,14 +1458,14 @@ ObjectMoveRight
 PlayerMoveUp
           ldx #0
           
-          jmp ObjectMoveUp
+          jmp ObjectMoveUpBlocking
           
 ;------------------------------------------------------------
 ;move object up if not blocked
 ;x = object index
 ;------------------------------------------------------------
-!zone ObjectMoveUp
-ObjectMoveUp
+!zone ObjectMoveUpBlocking
+ObjectMoveUpBlocking
           
           lda SPRITE_CHAR_POS_Y_DELTA,x
           beq .CheckCanMoveUp
@@ -1286,9 +1495,7 @@ ObjectMoveUp
           dey
           lda SCREEN_LINE_OFFSET_TABLE_LO,y
           sta ZEROPAGE_POINTER_1
-          lda SCREEN_LINE_OFFSET_TABLE_HI,y
-          sec
-          sbc #( ( ( SCREEN_CHAR - SCREEN_BACK_CHAR ) & 0xff00 ) >> 8 )
+          lda SCREEN_BACK_LINE_OFFSET_TABLE_HI,y
           sta ZEROPAGE_POINTER_1 + 1
 
           ldy SPRITE_CHAR_POS_X,x
@@ -1306,9 +1513,7 @@ ObjectMoveUp
           dey
           lda SCREEN_LINE_OFFSET_TABLE_LO,y
           sta ZEROPAGE_POINTER_1
-          lda SCREEN_LINE_OFFSET_TABLE_HI,y
-          sec
-          sbc #( ( ( SCREEN_CHAR - SCREEN_BACK_CHAR ) & 0xff00 ) >> 8 )
+          lda SCREEN_BACK_LINE_OFFSET_TABLE_HI,y
           sta ZEROPAGE_POINTER_1 + 1
           
           ldy SPRITE_CHAR_POS_X,x
@@ -1326,20 +1531,42 @@ ObjectMoveUp
           
           
 ;------------------------------------------------------------
+;move object up
+;x = object index
+;------------------------------------------------------------
+!zone ObjectMoveUp
+ObjectMoveUp
+          
+          dec SPRITE_CHAR_POS_Y_DELTA,x
+          
+          lda SPRITE_CHAR_POS_Y_DELTA,x
+          cmp #$ff
+          bne .NoCharStep
+          
+          dec SPRITE_CHAR_POS_Y,x
+          lda #7
+          sta SPRITE_CHAR_POS_Y_DELTA,x
+          
+.NoCharStep          
+          jsr MoveSpriteUp
+          rts
+          
+          
+;------------------------------------------------------------
 ;PlayerMoveDown
 ;------------------------------------------------------------
 !zone PlayerMoveDown
 PlayerMoveDown
           ldx #0
           
-          jmp ObjectMoveDown
+          jmp ObjectMoveDownBlocking
 
 ;------------------------------------------------------------
 ;move object down if not blocked
 ;x = object index
 ;------------------------------------------------------------
-!zone ObjectMoveDown
-ObjectMoveDown
+!zone ObjectMoveDownBlocking
+ObjectMoveDownBlocking
           
           lda SPRITE_CHAR_POS_Y_DELTA,x
           beq .CheckCanMoveDown
@@ -1368,9 +1595,7 @@ ObjectMoveDown
           iny
           lda SCREEN_LINE_OFFSET_TABLE_LO,y
           sta ZEROPAGE_POINTER_1
-          lda SCREEN_LINE_OFFSET_TABLE_HI,y
-          sec
-          sbc #( ( ( SCREEN_CHAR - SCREEN_BACK_CHAR ) & 0xff00 ) >> 8 )
+          lda SCREEN_BACK_LINE_OFFSET_TABLE_HI,y
           sta ZEROPAGE_POINTER_1 + 1
 
           ldy SPRITE_CHAR_POS_X,x
@@ -1386,9 +1611,7 @@ ObjectMoveDown
           iny
           lda SCREEN_LINE_OFFSET_TABLE_LO,y
           sta ZEROPAGE_POINTER_1
-          lda SCREEN_LINE_OFFSET_TABLE_HI,y
-          sec
-          sbc #( ( ( SCREEN_CHAR - SCREEN_BACK_CHAR ) & 0xff00 ) >> 8 )
+          lda SCREEN_BACK_LINE_OFFSET_TABLE_HI,y
           sta ZEROPAGE_POINTER_1 + 1
           
           ldy SPRITE_CHAR_POS_X,x
@@ -1404,6 +1627,27 @@ ObjectMoveDown
           lda #0
           rts
           
+
+;------------------------------------------------------------
+;move object down
+;x = object index
+;------------------------------------------------------------
+!zone ObjectMoveDown
+ObjectMoveDown
+          
+          inc SPRITE_CHAR_POS_Y_DELTA,x
+          
+          lda SPRITE_CHAR_POS_Y_DELTA,x
+          cmp #8
+          bne .NoCharStep
+          
+          lda #0
+          sta SPRITE_CHAR_POS_Y_DELTA,x
+          inc SPRITE_CHAR_POS_Y,x
+          
+.NoCharStep          
+          jsr MoveSpriteDown
+          rts
 
 
 ;------------------------------------------------------------
@@ -1462,12 +1706,12 @@ BehaviourBatLR
           beq .MoveRight
           
           ;move left
-          jsr ObjectMoveLeft
+          jsr ObjectMoveLeftBlocking
           beq .ToggleDirection
           rts
           
 .MoveRight
-          jsr ObjectMoveRight
+          jsr ObjectMoveRightBlocking
           beq .ToggleDirection
           rts
           
@@ -1501,12 +1745,12 @@ BehaviourBatUD
           beq .MoveDown
           
           ;move up
-          jsr ObjectMoveUp
+          jsr ObjectMoveUpBlocking
           beq .ToggleDirection
           rts
           
 .MoveDown
-          jsr ObjectMoveDown
+          jsr ObjectMoveDownBlocking
           beq .ToggleDirection
           rts
           
@@ -1554,13 +1798,13 @@ BehaviourBat8
           and #$7f
           sta PARAM1
 .MoveLeft          
-          jsr MoveSpriteLeft
+          jsr ObjectMoveLeft
           dec PARAM1
           bne .MoveLeft
           jmp .XMoveDone
           
 .MoveRight
-          jsr MoveSpriteRight
+          jsr ObjectMoveRight
           dec PARAM1
           bne .MoveRight
           
@@ -1578,19 +1822,61 @@ BehaviourBat8
           and #$7f
           sta PARAM1
 .MoveUp   
-          jsr MoveSpriteUp
+          jsr ObjectMoveUp
           dec PARAM1
           bne .MoveUp
           rts
           
 .MoveDown
-          jsr MoveSpriteDown
+          jsr ObjectMoveDown
           dec PARAM1
           bne .MoveDown
 
 .NoYMoveNeeded
           rts
           
+ 
+;------------------------------------------------------------
+;simply walk left/right, don't fall off
+;------------------------------------------------------------
+!zone BehaviourMummy
+BehaviourMummy
+          lda DELAYED_GENERIC_COUNTER
+          and #$03
+          beq .MovementUpdate
+          rts
+          
+.MovementUpdate
+          inc SPRITE_MOVE_POS,x
+          lda SPRITE_MOVE_POS,x
+          and #$07
+          sta SPRITE_MOVE_POS,x
+          
+          cmp #4
+          
+          bpl .CanMove
+          rts
+
+.CanMove
+          lda SPRITE_DIRECTION,x
+          beq .MoveRight
+          
+          ;move left
+          jsr ObjectWalkLeft
+          beq .ToggleDirection
+          rts
+          
+.MoveRight
+          jsr ObjectWalkRight
+          beq .ToggleDirection
+          rts
+          
+.ToggleDirection
+          lda SPRITE_DIRECTION,x
+          eor #1
+          sta SPRITE_DIRECTION,x
+          rts
+ 
  
 ;------------------------------------------------------------
 ;Move Sprite Left
@@ -2089,16 +2375,15 @@ BuildScreen
           lda TYPE_START_SPRITE,y
           sta SPRITE_POINTER_BASE,x
           
+          lda TYPE_START_HP,y
+          sta SPRITE_HP,x
+          
           ;look right per default
           lda #0
           sta SPRITE_DIRECTION,x
           sta SPRITE_ANIM_POS,x
           sta SPRITE_ANIM_DELAY,x
           sta SPRITE_MOVE_POS,x
-          
-          ;5 HP per default
-          lda #5
-          sta SPRITE_HP,x
           
           ;adjust enemy counter
           ldx PARAM3
@@ -2349,12 +2634,12 @@ DisplayLiveNumber
           tya
           clc
           adc #48
-          sta SCREEN_CHAR + ( 23 * 40 + 24 )
+          sta SCREEN_CHAR + ( 24 * 40 + 37 )
           
           pla
           clc
           adc #48
-          sta SCREEN_CHAR + ( 23 * 40 + 25 )
+          sta SCREEN_CHAR + ( 24 * 40 + 38 )
           
           rts
           
@@ -2490,6 +2775,7 @@ LEVEL_1
           !byte LD_OBJECT,34,11,TYPE_BAT_LR
           !byte LD_OBJECT,31,12,TYPE_BAT_8
           !byte LD_OBJECT,10,18,TYPE_BAT_UD
+          !byte LD_OBJECT,20,18,TYPE_MUMMY
           !byte LD_END
 
 LEVEL_2
@@ -2579,12 +2865,14 @@ ENEMY_BEHAVIOUR_TABLE_LO
           !byte <BehaviourBatLR
           !byte <BehaviourBatUD
           !byte <BehaviourBat8
+          !byte <BehaviourMummy
           
 ENEMY_BEHAVIOUR_TABLE_HI
           !byte >PlayerControl
           !byte >BehaviourBatLR
           !byte >BehaviourBatUD
           !byte >BehaviourBat8
+          !byte >BehaviourMummy
           
 IS_TYPE_ENEMY
           !byte 0     ;dummy entry for inactive object
@@ -2592,6 +2880,7 @@ IS_TYPE_ENEMY
           !byte 1     ;bat_lr
           !byte 1     ;bat_ud
           !byte 1     ;bat 8
+          !byte 1     ;mummy
           
 TYPE_START_SPRITE
           !byte 0     ;dummy entry for inactive object
@@ -2599,6 +2888,7 @@ TYPE_START_SPRITE
           !byte SPRITE_BAT_1
           !byte SPRITE_BAT_1
           !byte SPRITE_BAT_2
+          !byte SPRITE_MUMMY_R_1
           
 TYPE_START_COLOR
           !byte 0
@@ -2606,6 +2896,7 @@ TYPE_START_COLOR
           !byte 3
           !byte 3
           !byte 8
+          !byte 1
           
 TYPE_START_MULTICOLOR
           !byte 0
@@ -2613,6 +2904,15 @@ TYPE_START_MULTICOLOR
           !byte 0
           !byte 0
           !byte 0
+          !byte 0
+          
+TYPE_START_HP
+          !byte 0
+          !byte 1
+          !byte 5
+          !byte 5
+          !byte 5
+          !byte 10
           
 BAT_ANIMATION
           !byte SPRITE_BAT_1
@@ -2725,7 +3025,7 @@ XBIT_TABLE
 TEXT_PRESS_FIRE          
           !text "PRESS FIRE TO RESTART*"
 TEXT_DISPLAY
-          !text " SCORE: 000000   LIVES: 03    LEVEL: 00 *"
+          !text " SCORE: 000000                LEVEL: 00                               LIVES: 03 *"
           
 SCREEN_LINE_OFFSET_TABLE_LO
           !byte ( SCREEN_CHAR +   0 ) & 0x00ff
@@ -2753,6 +3053,7 @@ SCREEN_LINE_OFFSET_TABLE_LO
           !byte ( SCREEN_CHAR + 880 ) & 0x00ff
           !byte ( SCREEN_CHAR + 920 ) & 0x00ff
           !byte ( SCREEN_CHAR + 960 ) & 0x00ff
+          
 SCREEN_LINE_OFFSET_TABLE_HI
           !byte ( ( SCREEN_CHAR +   0 ) & 0xff00 ) >> 8
           !byte ( ( SCREEN_CHAR +  40 ) & 0xff00 ) >> 8
@@ -2779,6 +3080,33 @@ SCREEN_LINE_OFFSET_TABLE_HI
           !byte ( ( SCREEN_CHAR + 880 ) & 0xff00 ) >> 8
           !byte ( ( SCREEN_CHAR + 920 ) & 0xff00 ) >> 8
           !byte ( ( SCREEN_CHAR + 960 ) & 0xff00 ) >> 8
+          
+SCREEN_BACK_LINE_OFFSET_TABLE_HI
+          !byte ( ( SCREEN_BACK_CHAR +   0 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR +  40 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR +  80 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 120 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 160 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 200 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 240 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 280 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 320 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 360 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 400 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 440 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 480 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 520 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 560 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 600 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 640 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 680 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 720 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 760 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 800 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 840 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 880 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 920 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 960 ) & 0xff00 ) >> 8
 
 CHARSET
           !binary "j.chr"
