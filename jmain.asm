@@ -59,39 +59,42 @@ SCREEN_BACK_COLOR       = $C400
 SPRITE_POINTER_BASE     = SCREEN_CHAR + 1016
 
 ;number of sprites divided by four
-NUMBER_OF_SPRITES_DIV_4 = 7
+NUMBER_OF_SPRITES_DIV_4 = 8
 
 ;sprite number constant
 SPRITE_BASE             = 64
 
-SPRITE_PLAYER           = SPRITE_BASE + 0
-SPRITE_BAT_1            = SPRITE_BASE + 1
-SPRITE_PLAYER_STAND_R   = SPRITE_BASE + 2
-SPRITE_PLAYER_STAND_L   = SPRITE_BASE + 3
-SPRITE_PLAYER_STAND_RECOIL_R   = SPRITE_BASE + 4
-SPRITE_PLAYER_STAND_RECOIL_L   = SPRITE_BASE + 5
-SPRITE_PLAYER_WALK_R_1  = SPRITE_BASE + 6
-SPRITE_PLAYER_WALK_L_1  = SPRITE_BASE + 7
-SPRITE_PLAYER_WALK_R_2  = SPRITE_BASE + 8
-SPRITE_PLAYER_WALK_L_2  = SPRITE_BASE + 9
-SPRITE_PLAYER_WALK_R_3  = SPRITE_BASE + 10
-SPRITE_PLAYER_WALK_L_3  = SPRITE_BASE + 11
-SPRITE_PLAYER_WALK_R_4  = SPRITE_BASE + 12
-SPRITE_PLAYER_WALK_L_4  = SPRITE_BASE + 13
-SPRITE_PLAYER_JUMP_R    = SPRITE_BASE + 6
-SPRITE_PLAYER_JUMP_L    = SPRITE_BASE + 7
-SPRITE_PLAYER_FALL_R    = SPRITE_BASE + 12
-SPRITE_PLAYER_FALL_L    = SPRITE_BASE + 13
-SPRITE_PLAYER_JUMP_RECOIL_R    = SPRITE_BASE + 14
-SPRITE_PLAYER_JUMP_RECOIL_L    = SPRITE_BASE + 15
-SPRITE_PLAYER_FALL_RECOIL_R    = SPRITE_BASE + 20
-SPRITE_PLAYER_FALL_RECOIL_L    = SPRITE_BASE + 21
+SPRITE_PLAYER                 = SPRITE_BASE + 0
+SPRITE_BAT_1                  = SPRITE_BASE + 1
+SPRITE_PLAYER_STAND_R         = SPRITE_BASE + 2
+SPRITE_PLAYER_STAND_L         = SPRITE_BASE + 3
+SPRITE_PLAYER_STAND_RECOIL_R  = SPRITE_BASE + 4
+SPRITE_PLAYER_STAND_RECOIL_L  = SPRITE_BASE + 5
+SPRITE_PLAYER_WALK_R_1        = SPRITE_BASE + 6
+SPRITE_PLAYER_WALK_L_1        = SPRITE_BASE + 7
+SPRITE_PLAYER_WALK_R_2        = SPRITE_BASE + 8
+SPRITE_PLAYER_WALK_L_2        = SPRITE_BASE + 9
+SPRITE_PLAYER_WALK_R_3        = SPRITE_BASE + 10
+SPRITE_PLAYER_WALK_L_3        = SPRITE_BASE + 11
+SPRITE_PLAYER_WALK_R_4        = SPRITE_BASE + 12
+SPRITE_PLAYER_WALK_L_4        = SPRITE_BASE + 13
+SPRITE_PLAYER_JUMP_R          = SPRITE_BASE + 6
+SPRITE_PLAYER_JUMP_L          = SPRITE_BASE + 7
+SPRITE_PLAYER_FALL_R          = SPRITE_BASE + 12
+SPRITE_PLAYER_FALL_L          = SPRITE_BASE + 13
+SPRITE_PLAYER_JUMP_RECOIL_R   = SPRITE_BASE + 14
+SPRITE_PLAYER_JUMP_RECOIL_L   = SPRITE_BASE + 15
+SPRITE_PLAYER_FALL_RECOIL_R   = SPRITE_BASE + 20
+SPRITE_PLAYER_FALL_RECOIL_L   = SPRITE_BASE + 21
 
-SPRITE_BAT_2            = SPRITE_BASE + 22
-SPRITE_BAT_3            = SPRITE_BASE + 23
+SPRITE_BAT_2                  = SPRITE_BASE + 22
+SPRITE_BAT_3                  = SPRITE_BASE + 23
 
-SPRITE_MUMMY_R_1        = SPRITE_BASE + 24
-SPRITE_MUMMY_R_2        = SPRITE_BASE + 25
+SPRITE_MUMMY_R_1              = SPRITE_BASE + 24
+SPRITE_MUMMY_R_2              = SPRITE_BASE + 25
+
+SPRITE_PLAYER_RELOAD_R        = SPRITE_BASE + 30
+SPRITE_PLAYER_RELOAD_L        = SPRITE_BASE + 31
 
 ;offset from calculated char pos to true sprite pos
 SPRITE_CENTER_OFFSET_X  = 8
@@ -218,34 +221,24 @@ ITEM_COUNT              = 8
           sta PLAYER_LIVES
           
           ;setup level
+          jsr StartLevel
+          
           lda #0
           sta LEVEL_NR
           jsr BuildScreen
           
+          jsr CopyLevelToBackBuffer
           
-          jsr CopyLevelToBackBuffer          
-          
-          lda #<TEXT_DISPLAY
-          sta ZEROPAGE_POINTER_1
-          lda #>TEXT_DISPLAY
-          sta ZEROPAGE_POINTER_1 + 1
-          lda #0
-          sta PARAM1
-          lda #23
-          sta PARAM2
-          jsr DisplayText
-          jsr DisplayLevelNumber
-
 ;------------------------------------------------------------
 ;the main game loop
 ;------------------------------------------------------------
 
 GameLoop  
           jsr WaitFrame
-
+          
           lda #1
           sta VIC_BORDER_COLOR
-          
+
           jsr GameFlowControl
           jsr DeadControl
 
@@ -263,6 +256,29 @@ GameLoop
 ;------------------------------------------------------------
 !zone GameFlowControl
 GameFlowControl
+          ;let items dissolve
+          ldx #0
+.ItemLoop
+          lda ITEM_ACTIVE,x
+          cmp #ITEM_NONE
+          beq .NextItem
+          
+          inc ITEM_TIME,x
+          bne .NextItem
+          
+          ;remove item 
+          lda #ITEM_NONE
+          sta ITEM_ACTIVE,x
+          txa
+          tay
+          jsr RemoveItemImage
+          
+.NextItem
+          inx
+          cpx #ITEM_COUNT
+          bne .ItemLoop
+          
+          ;slow events
           inc DELAYED_GENERIC_COUNTER
           lda DELAYED_GENERIC_COUNTER
           cmp #8
@@ -289,17 +305,66 @@ GameFlowControl
 
 
 .GoToNextLevel
-          lda #0
-          sta VIC_SPRITE_ENABLE
+          jsr StartLevel
           
           inc LEVEL_NR
           jsr BuildScreen
           
           jsr CopyLevelToBackBuffer
-          
+          rts
+
+
+;------------------------------------------------------------
+;sets up variables for new level
+;------------------------------------------------------------
+!zone StartLevel
+StartLevel
+          lda #0
+          sta VIC_SPRITE_ENABLE
+
+          lda #<TEXT_DISPLAY
+          sta ZEROPAGE_POINTER_1
+          lda #>TEXT_DISPLAY
+          sta ZEROPAGE_POINTER_1 + 1
+          lda #0
+          sta PARAM1
+          lda #23
+          sta PARAM2
+          jsr DisplayText
           jsr DisplayLevelNumber
           
+          ;full shells
+          lda #2
+          sta SCREEN_COLOR + 23 * 40 + 19
+          sta SCREEN_COLOR + 23 * 40 + 20
+          lda #7
+          sta SCREEN_COLOR + 24 * 40 + 19
+          sta SCREEN_COLOR + 24 * 40 + 20
+
+          ;reset variables
+          lda #0
+          sta NUMBER_ENEMIES_ALIVE
+          sta LEVEL_DONE_DELAY
+          sta SPRITE_POS_X_EXTEND
+          sta PLAYER_STAND_STILL_TIME
+          
+          lda #2
+          sta PLAYER_SHELLS
+          sta PLAYER_SHELLS_MAX
+          
+          ;reset all items
+          ldx #0
+          lda #ITEM_NONE
+.ClearItemLoop
+          sta ITEM_ACTIVE,x
+          inx
+          cpx #ITEM_COUNT
+          bne .ClearItemLoop
+          
+          
           rts
+          
+
 
 ;------------------------------------------------------------
 ;DeadControl   (ingame behaviour when player died)
@@ -555,12 +620,54 @@ PlayerControl
           beq .LastItemReached
           jmp .ItemLoop
           
-.LastItemReached          
+.LastItemReached
 
+          ;check if player moved
+          lda $dc00
+          and #$1f
+          cmp #$1f
+          bne .PlayerMoved
+          
+          ;don't reload while recoil
+          lda PLAYER_SHOT_PAUSE
+          bne .PlayerMoved
+          
+          inc PLAYER_STAND_STILL_TIME
+          lda PLAYER_STAND_STILL_TIME
+          cmp #40
+          bne .HandleFire
+          
+          ;reload
+          lda #1
+          sta PLAYER_STAND_STILL_TIME
+          
+          ;already fully loaded?
+          lda PLAYER_SHELLS
+          cmp PLAYER_SHELLS_MAX
+          beq .HandleFire
+          
+          inc PLAYER_SHELLS
+          
+          ;display loaded shells
+          ldy PLAYER_SHELLS
+          lda #2
+          sta SCREEN_COLOR + 23 * 40 + 18,y
+          lda #7
+          sta SCREEN_COLOR + 24 * 40 + 18,y
+          jmp .HandleFire
+          
+.PlayerMoved
+          lda #0
+          sta PLAYER_STAND_STILL_TIME
+          
+.HandleFire          
           ;handle shooting/shoot pause
           lda PLAYER_SHOT_PAUSE
-          bne .FirePauseActive
+          bne .CannotShoot
           
+          lda PLAYER_SHELLS
+          beq .FireDone
+                    
           lda #$10
           bit $dc00
           bne .NotFirePushed
@@ -568,7 +675,7 @@ PlayerControl
           jsr FireShot
           jmp .FireDone
 
-.FirePauseActive
+.CannotShoot
           dec PLAYER_SHOT_PAUSE
 
 .FireDone
@@ -653,7 +760,7 @@ PlayerControl
           and #$03
           sta SPRITE_ANIM_POS
           
-.NoAnimLNeeded          
+.NoAnimLNeeded
 .NotLeftPressed
           lda #$08
           bit $dc00
@@ -684,8 +791,34 @@ PlayerControl
 .NotRightPressed
           ;restore x
           ldx #0
-
+          
           ;update player animation
+          lda PLAYER_STAND_STILL_TIME
+          beq .PlayerMoving
+          cmp #10
+          bmi .NotReloading
+          cmp #30
+          bpl .NotReloading
+          
+          ;set reload anim
+          lda PLAYER_SHELLS
+          cmp PLAYER_SHELLS_MAX
+          beq .NotReloading
+          
+          lda #SPRITE_PLAYER_RELOAD_R
+          clc
+          adc SPRITE_DIRECTION
+          sta SPRITE_POINTER_BASE
+          rts
+          
+.NotReloading
+          lda #SPRITE_PLAYER_STAND_R
+          clc
+          adc SPRITE_DIRECTION
+          sta SPRITE_POINTER_BASE
+          rts
+          
+.PlayerMoving
           lda SPRITE_FALLING
           bne .AnimFalling
 
@@ -705,6 +838,7 @@ PlayerControl
           adc #8
           sta SPRITE_POINTER_BASE
           
+.NoUpdateNeeded          
           rts
           
 .AnimNoRecoil          
@@ -792,6 +926,13 @@ PlayerControl
 ;------------------------------------------------------------
 !zone PickItem
 PickItem
+          lda ITEM_ACTIVE,y
+          cmp #ITEM_BULLET
+          beq .EffectBullet
+          cmp #ITEM_HEALTH
+          beq .EffectHealth
+          
+.RemoveItem          
           lda #ITEM_NONE
           sta ITEM_ACTIVE,y
           
@@ -801,6 +942,35 @@ PickItem
           jsr RemoveItemImage
           rts
 
+.EffectBullet
+          lda PLAYER_SHELLS_MAX
+          cmp #5
+          beq .RemoveItem
+          
+          ldx PLAYER_SHELLS_MAX
+          
+          lda #224
+          sta SCREEN_CHAR + 23 * 40 + 19,x
+          lda #225
+          sta SCREEN_CHAR + 24 * 40 + 19,x
+          lda #6
+          sta SCREEN_COLOR + 23 * 40 + 19,x
+          sta SCREEN_COLOR + 24 * 40 + 19,x
+          
+          inc PLAYER_SHELLS_MAX
+          jmp .RemoveItem
+          
+.EffectHealth
+          lda PLAYER_LIVES
+          cmp #99
+          beq .RemoveItem
+          
+          inc PLAYER_LIVES
+          sty PARAM1
+          jsr DisplayLiveNumber
+          ldy PARAM1
+          jmp .RemoveItem
+          
           
 ;------------------------------------------------------------
 ;put item image on screen
@@ -861,6 +1031,7 @@ PutItemImage
 !zone RemoveItemImage
 RemoveItemImage
           sty PARAM2
+          stx PARAM3
           
           lda ITEM_POS_Y,y
           tay
@@ -929,6 +1100,7 @@ RemoveItemImage
           bne .RepaintLoop
           
           ldy PARAM2
+          ldx PARAM3
           rts
 
 
@@ -937,8 +1109,15 @@ RemoveItemImage
 ;------------------------------------------------------------
 !zone FireShot
 FireShot
+          dec PLAYER_SHELLS
+          ldy PLAYER_SHELLS
+          
+          lda #6
+          sta SCREEN_COLOR + 23 * 40 + 19,y
+          sta SCREEN_COLOR + 24 * 40 + 19,y
+          
           ;frame delay until next shot
-          lda #10
+          lda #20
           sta PLAYER_SHOT_PAUSE
           
           ldy SPRITE_CHAR_POS_Y
@@ -1066,6 +1245,9 @@ SpawnItem
           
           sta ITEM_ACTIVE,y
           sta PARAM1
+          
+          lda #0
+          sta ITEM_TIME,y
           
           lda SPRITE_CHAR_POS_X,x
           sta ITEM_POS_X,y
@@ -2102,11 +2284,6 @@ CopyLevelToBackBuffer
 ;------------------------------------------------------------
 !zone BuildScreen
 BuildScreen
-          lda #0
-          sta NUMBER_ENEMIES_ALIVE
-          sta LEVEL_DONE_DELAY
-          sta SPRITE_POS_X_EXTEND
-          
           ;reset all objects
           ldx #0
           lda #0
@@ -2118,15 +2295,6 @@ BuildScreen
           inx
           cpx #8
           bne .ClearObjectLoop
-          
-          ;reset all items
-          ldx #0
-          lda #ITEM_NONE
-.ClearItemLoop
-          sta ITEM_ACTIVE,x
-          inx
-          cpx #ITEM_COUNT
-          bne .ClearItemLoop
           
           ;clear screen
           lda #0
@@ -2156,9 +2324,14 @@ BuildScreen
           
 .NoMoreLevels
           ;loop from first screen
+          jsr StartLevel
+          
           lda #0
           sta LEVEL_NR
-          jmp BuildScreen
+          jsr BuildScreen
+          
+          jsr CopyLevelToBackBuffer
+          rts
           
 .BuildLevel
           ;work through data
@@ -2822,6 +2995,13 @@ PLAYER_SHOT_PAUSE
           !byte 0
 PLAYER_LIVES
           !byte 0
+PLAYER_SHELLS
+          !byte 2
+PLAYER_SHELLS_MAX
+          !byte 2
+PLAYER_STAND_STILL_TIME
+          !byte 0
+          
 SPRITE_HP
           !byte 0,0,0,0,0,0,0,0
           
@@ -2858,6 +3038,8 @@ ITEM_ACTIVE
 ITEM_POS_X
           !fill ITEM_COUNT,0
 ITEM_POS_Y
+          !fill ITEM_COUNT,0
+ITEM_TIME
           !fill ITEM_COUNT,0
           
 ENEMY_BEHAVIOUR_TABLE_LO          
@@ -3025,7 +3207,7 @@ XBIT_TABLE
 TEXT_PRESS_FIRE          
           !text "PRESS FIRE TO RESTART*"
 TEXT_DISPLAY
-          !text " SCORE: 000000                LEVEL: 00                               LIVES: 03 *"
+          !text " SCORE: 000000     ",224,224,"         LEVEL: 00                    ",225,225,"         LIVES: 03 *"
           
 SCREEN_LINE_OFFSET_TABLE_LO
           !byte ( SCREEN_CHAR +   0 ) & 0x00ff
