@@ -216,6 +216,63 @@ ITEM_COUNT              = 8
           lda #1
           sta VIC_SPRITE_MULTICOLOR_2
 
+;------------------------------------------------------------
+;the title screen game loop
+;------------------------------------------------------------
+!zone TitleScreen
+TitleScreen
+          ldx #0
+          stx BUTTON_PRESSED
+          stx BUTTON_RELEASED
+          sta VIC_SPRITE_ENABLE
+          
+          ;clear screen
+          lda #32
+          ldy #0
+          jsr ClearScreen
+          
+          ;display title logo
+          lda #<TEXT_TITLE
+          sta ZEROPAGE_POINTER_1
+          lda #>TEXT_TITLE
+          sta ZEROPAGE_POINTER_1 + 1
+          lda #0
+          sta PARAM1
+          lda #1
+          sta PARAM2
+          jsr DisplayText
+          
+          ;display start text
+          lda #<TEXT_FIRE_TO_START
+          sta ZEROPAGE_POINTER_1
+          lda #>TEXT_FIRE_TO_START
+          sta ZEROPAGE_POINTER_1 + 1
+          lda #11
+          sta PARAM1
+          lda #23
+          sta PARAM2
+          jsr DisplayText
+          
+          
+.TitleLoop
+          jsr WaitFrame
+          
+          lda #$10
+          bit $dc00
+          bne .ButtonNotPressed
+          
+          ;button pushed
+          lda BUTTON_RELEASED
+          bne .Restart
+          jmp .TitleLoop
+          
+
+.ButtonNotPressed
+          lda #1
+          sta BUTTON_RELEASED
+          jmp .TitleLoop
+          
+.Restart
           ;game start values
           lda #3
           sta PLAYER_LIVES
@@ -392,6 +449,12 @@ DeadControl
           rts
           
 .Restart
+          ;if last live return to title
+          lda PLAYER_LIVES
+          bne .RestartLevel
+          jmp TitleScreen
+          
+.RestartLevel          
           ;remove restart message
           lda #10
           sta PARAM1
@@ -2667,6 +2730,38 @@ ClearPlayScreen
 
 
 ;------------------------------------------------------------
+;clears the screen
+;A = char
+;Y = color
+;------------------------------------------------------------
+
+!zone ClearScreen
+ClearScreen
+          ldx #$00
+.ClearLoop          
+          sta SCREEN_CHAR,x
+          sta SCREEN_CHAR + 250,x
+          sta SCREEN_CHAR + 500,x
+          sta SCREEN_CHAR + 750,x
+          inx
+          cpx #250
+          bne .ClearLoop
+
+          tya
+          ldx #$00
+.ColorLoop          
+          sta $d800,x
+          sta $d800 + 250,x
+          sta $d800 + 500,x
+          sta $d800 + 750,x
+          inx
+          cpx #250
+          bne .ColorLoop
+
+          rts
+
+
+;------------------------------------------------------------
 ;displays a line of text
 ;ZEROPAGE_POINTER_1 = pointer to text
 ;PARAM1 = X
@@ -3208,6 +3303,17 @@ TEXT_PRESS_FIRE
           !text "PRESS FIRE TO RESTART*"
 TEXT_DISPLAY
           !text " SCORE: 000000     ",224,224,"         LEVEL: 00                    ",225,225,"         LIVES: 03 *"
+TEXT_TITLE
+          ;          SSSSSSS    UUUUUU     PPPPPPP    EEEEEEE    RRRRRRR    NNNNNNN    AAAAAAA    TTTTTTTTTTT    UUUUUUU    RRRRRRR    AAAAAAA    LLLLLLL
+          !text "  ",229,228,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32,226, 32,32, 32, 32,32, 32, 32,32, 32, 32,32,226, 32,"  "
+          !text "  ",226, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32,227,229,228,32, 32, 32,32, 32, 32,32, 32, 32,32,226, 32,"  "
+          !text "  ",227,226,32,226,226,32,229,226,32,229,226,32,229,228,32,229,226,32,229,226,32, 32,226, 32,32,226,226,32,229,228,32,229,226,32,226, 32,"  "
+          !text "  ", 32,226,32,226,226,32,226,226,32,229,228,32,226, 32,32,226,226,32,229,226,32, 32,226, 32,32,226,226,32,226, 32,32,229,226,32,226, 32,"  "
+          !text "  ",227,228,32,227,228,32,229,228,32,227,228,32,228, 32,32,228,228,32,228,228,32, 32,228, 32,32,227,228,32,228, 32,32,228,228,32,227,228,"  "
+          !text "        ",226,"*"
+          
+TEXT_FIRE_TO_START
+          !text "PRESS FIRE TO PLAY*"
           
 SCREEN_LINE_OFFSET_TABLE_LO
           !byte ( SCREEN_CHAR +   0 ) & 0x00ff
