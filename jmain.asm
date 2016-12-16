@@ -16,32 +16,6 @@ ZEROPAGE_POINTER_2      = $19
 ZEROPAGE_POINTER_3      = $21
 ZEROPAGE_POINTER_4      = $23
 
-KERNAL_GETIN            = $ffe4
-KERNAL_SETMSG           = $ff90
-KERNAL_SETLFS           = $ffba
-KERNAL_SETNAM           = $ffbd
-KERNAL_LOAD             = $ffd5
-
-VIC_SPRITE_X_POS        = $d000
-VIC_SPRITE_Y_POS        = $d001
-VIC_SPRITE_X_EXTEND     = $d010
-VIC_SPRITE_ENABLE       = $d015
-VIC_CONTROL             = $d016
-VIC_MEMORY_CONTROL      = $d018
-VIC_SPRITE_MULTICOLOR   = $d01c
-VIC_SPRITE_MULTICOLOR_1 = $d025
-VIC_SPRITE_MULTICOLOR_2 = $d026
-VIC_SPRITE_COLOR        = $d027
-
-VIC_BORDER_COLOR        = $d020
-VIC_BACKGROUND_COLOR    = $d021
-VIC_CHARSET_MULTICOLOR_1= $d022
-VIC_CHARSET_MULTICOLOR_2= $d023
-
-JOYSTICK_PORT_II        = $dc00
-
-CIA_PRA                 = $dd00
-
 ;address of the screen buffer
 SCREEN_CHAR             = $CC00
 
@@ -62,7 +36,7 @@ SPRITE_POINTER_BASE     = SCREEN_CHAR + 1016
 NUMBER_OF_SPRITES_DIV_4 = 8
 
 ;sprite number constant
-SPRITE_BASE             = 64
+SPRITE_BASE                   = 64
 
 SPRITE_PLAYER                 = SPRITE_BASE + 0
 SPRITE_BAT_1                  = SPRITE_BASE + 1
@@ -106,6 +80,11 @@ JUMP_TABLE_SIZE         = 10
 ;entries of fall table
 FALL_TABLE_SIZE         = 10
 
+;bytes (digits) per score entry
+HIGHSCORE_ENTRY_COUNT   = 8
+HIGHSCORE_SCORE_SIZE    = 8
+HIGHSCORE_NAME_SIZE     = 12
+
 
 ;level data constants
 LD_END                  = 0
@@ -139,16 +118,16 @@ ITEM_COUNT              = 8
           ;init sprite registers
           ;no visible sprites
           lda #0
-          sta VIC_SPRITE_ENABLE
+          sta 53248 + 21
           
           ;set charset
           lda #$3c
-          sta VIC_MEMORY_CONTROL
+          sta 53272
 
           ;VIC bank
-          lda CIA_PRA
+          lda 56576
           and #$fc
-          sta CIA_PRA
+          sta 56576
 
           ;----------------------------------
           ;copy charset and sprites to target          
@@ -192,29 +171,29 @@ ITEM_COUNT              = 8
           
           ;background black
           lda #0
-          sta VIC_BACKGROUND_COLOR
+          sta 53281
           
           ;set charset multi colors
           lda #12
-          sta VIC_CHARSET_MULTICOLOR_1
+          sta 53282
           lda #8
-          sta VIC_CHARSET_MULTICOLOR_2
+          sta 53283
           ;enable multi color charset
-          lda VIC_CONTROL
+          lda 53270
           ora #$10
-          sta VIC_CONTROL
+          sta 53270
 
           ;set sprite flags
           lda #0
-          sta VIC_SPRITE_X_EXTEND
-          sta VIC_SPRITE_ENABLE
-          sta VIC_SPRITE_MULTICOLOR
+          sta 53248 + 16
+          sta 53248 + 21
+          sta 53248 + 28
           
           ;sprite multi colors
           lda #11
-          sta VIC_SPRITE_MULTICOLOR_1
+          sta 53248 + 37
           lda #1
-          sta VIC_SPRITE_MULTICOLOR_2
+          sta 53248 + 38
 
 ;------------------------------------------------------------
 ;the title screen game loop
@@ -224,7 +203,7 @@ TitleScreen
           ldx #0
           stx BUTTON_PRESSED
           stx BUTTON_RELEASED
-          sta VIC_SPRITE_ENABLE
+          stx 53248 + 21
           
           ;clear screen
           lda #32
@@ -253,6 +232,32 @@ TitleScreen
           sta PARAM2
           jsr DisplayText
           
+          ;display high scores
+          ;x,y pos of name
+          lda #6
+          sta PARAM1
+          lda #10
+          sta PARAM2
+
+          lda #<HIGHSCORE_NAME
+          sta ZEROPAGE_POINTER_1
+          lda #>HIGHSCORE_NAME
+          sta ZEROPAGE_POINTER_1 + 1
+
+          jsr DisplayText
+
+          ;x,y pos of score          
+          lda #25
+          sta PARAM1
+          lda #10
+          sta PARAM2
+
+          lda #<HIGHSCORE_SCORE
+          sta ZEROPAGE_POINTER_1
+          lda #>HIGHSCORE_SCORE
+          sta ZEROPAGE_POINTER_1 + 1
+
+          jsr DisplayText
           
 .TitleLoop
           jsr WaitFrame
@@ -273,6 +278,7 @@ TitleScreen
           jmp .TitleLoop
           
 .Restart
+
           ;game start values
           lda #3
           sta PLAYER_LIVES
@@ -294,7 +300,7 @@ GameLoop
           jsr WaitFrame
           
           lda #1
-          sta VIC_BORDER_COLOR
+          sta 53280
 
           jsr GameFlowControl
           jsr DeadControl
@@ -303,7 +309,7 @@ GameLoop
           jsr CheckCollisions
 
           lda #0
-          sta VIC_BORDER_COLOR
+          sta 53280
           
           jmp GameLoop          
           
@@ -351,7 +357,7 @@ GameFlowControl
           lda LEVEL_DONE_DELAY
           cmp #20
           beq .GoToNextLevel
-          inc VIC_BORDER_COLOR
+          inc 53280
           
 .NotDoneYet        
 
@@ -377,7 +383,7 @@ GameFlowControl
 !zone StartLevel
 StartLevel
           lda #0
-          sta VIC_SPRITE_ENABLE
+          sta 53248 + 21
 
           lda #<TEXT_DISPLAY
           sta ZEROPAGE_POINTER_1
@@ -424,6 +430,104 @@ StartLevel
 
 
 ;------------------------------------------------------------
+;check if the player got a new highscore entry
+;------------------------------------------------------------
+!zone CheckForHighscore
+CheckForHighscore
+          lda #0
+          sta PARAM1
+          ldy #0
+          
+.CheckScoreEntry          
+          ldx #0
+          sty PARAM2
+          
+.CheckNextDigit          
+          lda SCREEN_CHAR + ( 23 * 40 + 8 ),x
+          cmp HIGHSCORE_SCORE,y
+          bcc .NotHigher
+          bne .IsHigher
+          
+          ;need to check next digit
+          iny
+          inx
+          cpx #HIGHSCORE_SCORE_SIZE
+          beq .IsHigher
+          jmp .CheckNextDigit
+          
+.NotHigher
+          inc PARAM1
+          lda PARAM1
+          cmp #HIGHSCORE_ENTRY_COUNT
+          beq .NoNewHighscore
+          
+          ;y points somewhere inside the score, recalc next line pos
+          lda PARAM2
+          clc
+          adc #( HIGHSCORE_SCORE_SIZE + 1 )
+          tay
+          jmp .CheckScoreEntry
+
+.NoNewHighscore
+          jmp TitleScreen
+          
+.IsHigher
+          lda PARAM1
+          sta 53280
+          
+          ;shift older entries down, add new entry
+          lda #( HIGHSCORE_ENTRY_COUNT - 1 )
+          sta PARAM2
+          
+          ;y carries the offset in the score text, position at start of second last entry
+          ldy #( ( HIGHSCORE_SCORE_SIZE + 1 ) * ( HIGHSCORE_ENTRY_COUNT - 2 ) )
+          
+.CopyScore          
+          lda PARAM2
+          cmp PARAM1
+          beq .SetNewScore
+          
+          ;copy score
+          ldx #0
+          
+.CopyNextScoreDigit          
+          lda HIGHSCORE_SCORE,y
+          sta HIGHSCORE_SCORE + ( HIGHSCORE_SCORE_SIZE + 1 ),y
+          
+          iny
+          inx
+          cpx #HIGHSCORE_SCORE_SIZE
+          bne .CopyNextScoreDigit
+          
+          tya
+          sec
+          sbc #( HIGHSCORE_SCORE_SIZE + HIGHSCORE_SCORE_SIZE + 1 )
+          tay
+          dec PARAM2
+          jmp .CopyScore
+          
+.SetNewScore
+          ;y points at score above the new entry
+          tya
+          clc
+          adc #( HIGHSCORE_SCORE_SIZE + 1 )
+          tay
+          
+          ldx #0
+          
+.SetNextScoreDigit          
+          lda SCREEN_CHAR + ( 23 * 40 + 8 ),x
+          sta HIGHSCORE_SCORE,y
+          
+          iny
+          inx
+          cpx #HIGHSCORE_SCORE_SIZE
+          bne .SetNextScoreDigit
+          
+          jmp TitleScreen
+          
+
+;------------------------------------------------------------
 ;DeadControl   (ingame behaviour when player died)
 ;------------------------------------------------------------
 !zone DeadControl
@@ -452,7 +556,7 @@ DeadControl
           ;if last live return to title
           lda PLAYER_LIVES
           bne .RestartLevel
-          jmp TitleScreen
+          jmp CheckForHighscore
           
 .RestartLevel          
           ;remove restart message
@@ -510,8 +614,8 @@ DeadControl
           
           ;enable sprite
           lda BIT_TABLE,x
-          ora VIC_SPRITE_ENABLE
-          sta VIC_SPRITE_ENABLE
+          ora 53248 + 21
+          sta 53248 + 21
           
           ;initialise enemy values
           lda #SPRITE_PLAYER
@@ -2136,7 +2240,7 @@ MoveSpriteLeft
           eor #$ff
           and SPRITE_POS_X_EXTEND
           sta SPRITE_POS_X_EXTEND
-          sta VIC_SPRITE_X_EXTEND
+          sta 53248 + 16
           
 .NoChangeInExtendedFlag     
           txa
@@ -2144,7 +2248,7 @@ MoveSpriteLeft
           tay
           
           lda SPRITE_POS_X,x
-          sta VIC_SPRITE_X_POS,y
+          sta 53248,y
           rts  
 
 ;------------------------------------------------------------
@@ -2160,7 +2264,7 @@ MoveSpriteRight
           lda BIT_TABLE,x
           ora SPRITE_POS_X_EXTEND
           sta SPRITE_POS_X_EXTEND
-          sta VIC_SPRITE_X_EXTEND
+          sta 53248 + 16
           
 .NoChangeInExtendedFlag     
           txa
@@ -2168,7 +2272,7 @@ MoveSpriteRight
           tay
           
           lda SPRITE_POS_X,x
-          sta VIC_SPRITE_X_POS,y
+          sta 53248,y
           rts  
 
 ;------------------------------------------------------------
@@ -2260,7 +2364,7 @@ CalcSpritePosFromCharPos
           eor #$ff
           and SPRITE_POS_X_EXTEND
           sta SPRITE_POS_X_EXTEND
-          sta VIC_SPRITE_X_EXTEND
+          sta 53248 + 16
           
           ;need extended x bit?
           lda PARAM1
@@ -2271,7 +2375,7 @@ CalcSpritePosFromCharPos
           lda BIT_TABLE,x
           ora SPRITE_POS_X_EXTEND
           sta SPRITE_POS_X_EXTEND
-          sta VIC_SPRITE_X_EXTEND
+          sta 53248 + 16
           
 .NoXBit   
           ;calculate sprite positions (offset from border)
@@ -2286,7 +2390,7 @@ CalcSpritePosFromCharPos
           clc
           adc #( 24 - SPRITE_CENTER_OFFSET_X )
           sta SPRITE_POS_X,x
-          sta VIC_SPRITE_X_POS,y
+          sta 53248,y
           
           lda PARAM2
           sta SPRITE_CHAR_POS_Y,x
@@ -2583,27 +2687,27 @@ BuildScreen
           
           ;enable sprite
           lda BIT_TABLE,x
-          ora VIC_SPRITE_ENABLE
-          sta VIC_SPRITE_ENABLE
+          ora 53248 + 21
+          sta 53248 + 21
 
           ;sprite color
           ldy SPRITE_ACTIVE,x
           lda TYPE_START_COLOR,y
-          sta VIC_SPRITE_COLOR,x
+          sta 53248 + 39,x
           
           lda TYPE_START_MULTICOLOR,y
           beq .NoMulticolor
           
           lda BIT_TABLE,x
-          ora VIC_SPRITE_MULTICOLOR
-          sta VIC_SPRITE_MULTICOLOR
+          ora 53248 + 28
+          sta 53248 + 28
           jmp .MultiColorDone
           
 .NoMulticolor          
           lda BIT_TABLE,x
           eor #$ff
-          and VIC_SPRITE_MULTICOLOR
-          sta VIC_SPRITE_MULTICOLOR
+          and 53248 + 28
+          sta 53248 + 28
 
 .MultiColorDone      
           
@@ -2692,8 +2796,8 @@ RemoveObject
           ;disable sprite          
           lda BIT_TABLE,x
           eor #$ff
-          and VIC_SPRITE_ENABLE
-          sta VIC_SPRITE_ENABLE
+          and 53248 + 21
+          sta 53248 + 21
           rts
 
 
@@ -2819,7 +2923,6 @@ DisplayText
           sta ZEROPAGE_POINTER_1 + 1
 
           inc PARAM2
-          inc PARAM2
           jmp DisplayText
             
 .EndMarkerReached
@@ -2837,7 +2940,7 @@ IncreaseScore
           sty PARAM3
           
 .IncreaseBy1          
-          ldx #4
+          ldx #6
           
 .IncreaseDigit          
           inc SCREEN_CHAR + ( 23 * 40 + 8 ),x
@@ -3302,7 +3405,7 @@ XBIT_TABLE
 TEXT_PRESS_FIRE          
           !text "PRESS FIRE TO RESTART*"
 TEXT_DISPLAY
-          !text " SCORE: 000000     ",224,224,"         LEVEL: 00                    ",225,225,"         LIVES: 03 *"
+          !text " SCORE: 00000000   ",224,224,"         LEVEL: 00                    ",225,225,"         LIVES: 03 *"
 TEXT_TITLE
           ;          SSSSSSS    UUUUUU     PPPPPPP    EEEEEEE    RRRRRRR    NNNNNNN    AAAAAAA    TTTTTTTTTTT    UUUUUUU    RRRRRRR    AAAAAAA    LLLLLLL
           !text "  ",229,228,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32,226, 32,32, 32, 32,32, 32, 32,32, 32, 32,32,226, 32,"  "
@@ -3314,6 +3417,26 @@ TEXT_TITLE
           
 TEXT_FIRE_TO_START
           !text "PRESS FIRE TO PLAY*"
+          
+HIGHSCORE_SCORE
+          !text "00050000-"
+          !text "00040000-"
+          !text "00030000-"
+          !text "00020000-"
+          !text "00010000-"
+          !text "00001000-"
+          !text "00000300-"
+          !text "00000100*"
+          
+HIGHSCORE_NAME
+          !text "SUPERNATURAL-"
+          !text "SUPERNATURAL-"
+          !text "SUPERNATURAL-"
+          !text "SUPERNATURAL-"
+          !text "SUPERNATURAL-"
+          !text "SUPERNATURAL-"
+          !text "SUPERNATURAL-"
+          !text "SUPERNATURAL*"
           
 SCREEN_LINE_OFFSET_TABLE_LO
           !byte ( SCREEN_CHAR +   0 ) & 0x00ff
