@@ -1,5 +1,10 @@
 Supernatural memory map:
 
+VIC Memory Control ($d018) set to %00111100=$3c. Meaning 12 (%1100)*1K=$3000 from start of VIC.
+VIC bank control ($dd00) set to $fc=%11111100. Meaning %00=bank 3 = 3*16K = $C000-$FFFF.
+So character set data is at $C000 + $3000 = $F000
+
+Code:
 $C400-$0810 = 42Kb 
 
 Zero page:

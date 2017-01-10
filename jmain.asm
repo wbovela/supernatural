@@ -2,6 +2,7 @@
 !to "jmain.prg",cbm
 
 ;define constants here
+KERNAL_GETIN            = $ffe4
 
 ;placeholder for various temp parameters
 PARAM1                  = $03
@@ -15,6 +16,32 @@ ZEROPAGE_POINTER_1      = $17
 ZEROPAGE_POINTER_2      = $19
 ZEROPAGE_POINTER_3      = $21
 ZEROPAGE_POINTER_4      = $23
+
+KERNAL_GETIN            = $ffe4
+KERNAL_SETMSG           = $ff90
+KERNAL_SETLFS           = $ffba
+KERNAL_SETNAM           = $ffbd
+KERNAL_LOAD             = $ffd5
+
+VIC_SPRITE_X_POS        = $d000
+VIC_SPRITE_Y_POS        = $d001
+VIC_SPRITE_X_EXTEND     = $d010
+VIC_SPRITE_ENABLE       = $d015
+VIC_CONTROL             = $d016
+VIC_MEMORY_CONTROL      = $d018
+VIC_SPRITE_MULTICOLOR   = $d01c
+VIC_SPRITE_MULTICOLOR_1 = $d025
+VIC_SPRITE_MULTICOLOR_2 = $d026
+VIC_SPRITE_COLOR        = $d027
+
+VIC_BORDER_COLOR        = $d020
+VIC_BACKGROUND_COLOR    = $d021
+VIC_CHARSET_MULTICOLOR_1= $d022
+VIC_CHARSET_MULTICOLOR_2= $d023
+
+JOYSTICK_PORT_II        = $dc00
+
+CIA_PRA                 = $dd00
 
 ;address of the screen buffer
 SCREEN_CHAR             = $CC00
@@ -118,16 +145,16 @@ ITEM_COUNT              = 8
           ;init sprite registers
           ;no visible sprites
           lda #0
-          sta 53248 + 21
+          sta VIC_SPRITE_ENABLE
           
           ;set charset
           lda #$3c
-          sta 53272
+          sta VIC_MEMORY_CONTROL
 
           ;VIC bank
-          lda 56576
+          lda CIA_PRA
           and #$fc
-          sta 56576
+          sta CIA_PRA
 
           ;----------------------------------
           ;copy charset and sprites to target          
@@ -171,29 +198,29 @@ ITEM_COUNT              = 8
           
           ;background black
           lda #0
-          sta 53281
+          sta VIC_BACKGROUND_COLOR
           
           ;set charset multi colors
           lda #12
-          sta 53282
+          sta VIC_CHARSET_MULTICOLOR_1
           lda #8
-          sta 53283
+          sta VIC_CHARSET_MULTICOLOR_2
           ;enable multi color charset
-          lda 53270
+          lda VIC_CONTROL
           ora #$10
-          sta 53270
+          sta VIC_CONTROL
 
           ;set sprite flags
           lda #0
-          sta 53248 + 16
-          sta 53248 + 21
-          sta 53248 + 28
+          sta VIC_SPRITE_X_EXTEND
+          sta VIC_SPRITE_ENABLE
+          sta VIC_SPRITE_MULTICOLOR
           
           ;sprite multi colors
           lda #11
-          sta 53248 + 37
+          sta VIC_SPRITE_MULTICOLOR_1
           lda #1
-          sta 53248 + 38
+          sta VIC_SPRITE_MULTICOLOR_2
 
 ;------------------------------------------------------------
 ;the title screen game loop
@@ -203,11 +230,11 @@ TitleScreen
           ldx #0
           stx BUTTON_PRESSED
           stx BUTTON_RELEASED
-          stx 53248 + 21
+          stx VIC_SPRITE_ENABLE
           
           ;clear screen
           lda #32
-          ldy #0
+          ldy #1
           jsr ClearScreen
           
           ;display title logo
@@ -279,6 +306,25 @@ TitleScreen
           
 .Restart
 
+
+          ;lda #'1'
+          ;sta SCREEN_CHAR + ( 23 * 40 + 8 )
+          ;lda #'2'
+          ;sta SCREEN_CHAR + ( 23 * 40 + 8 ) + 1
+          ;lda #'3'
+          ;sta SCREEN_CHAR + ( 23 * 40 + 8 ) + 2
+          ;lda #'4'
+          ;sta SCREEN_CHAR + ( 23 * 40 + 8 ) + 3
+          ;lda #'5'
+          ;sta SCREEN_CHAR + ( 23 * 40 + 8 ) + 4
+          ;lda #'6'
+          ;sta SCREEN_CHAR + ( 23 * 40 + 8 ) + 5
+          ;lda #'7'
+          ;sta SCREEN_CHAR + ( 23 * 40 + 8 ) + 6
+          ;lda #'8'
+          ;sta SCREEN_CHAR + ( 23 * 40 + 8 ) + 7
+          ;jmp CheckForHighscore
+
           ;game start values
           lda #3
           sta PLAYER_LIVES
@@ -292,6 +338,30 @@ TitleScreen
           
           jsr CopyLevelToBackBuffer
           
+          lda #<TEXT_DISPLAY
+          sta ZEROPAGE_POINTER_1
+          lda #>TEXT_DISPLAY
+          sta ZEROPAGE_POINTER_1 + 1
+          lda #0
+          sta PARAM1
+          lda #23
+          sta PARAM2
+          jsr DisplayText
+          jsr DisplayLevelNumber
+          
+          ;full shells
+          lda #2
+          sta SCREEN_COLOR + 23 * 40 + 19
+          sta SCREEN_COLOR + 23 * 40 + 20
+          lda #7
+          sta SCREEN_COLOR + 24 * 40 + 19
+          sta SCREEN_COLOR + 24 * 40 + 20
+
+          lda #2
+          sta PLAYER_SHELLS
+          sta PLAYER_SHELLS_MAX
+          
+          
 ;------------------------------------------------------------
 ;the main game loop
 ;------------------------------------------------------------
@@ -300,7 +370,7 @@ GameLoop
           jsr WaitFrame
           
           lda #1
-          sta 53280
+          sta VIC_BORDER_COLOR
 
           jsr GameFlowControl
           jsr DeadControl
@@ -309,7 +379,7 @@ GameLoop
           jsr CheckCollisions
 
           lda #0
-          sta 53280
+          sta VIC_BORDER_COLOR
           
           jmp GameLoop          
           
@@ -357,7 +427,7 @@ GameFlowControl
           lda LEVEL_DONE_DELAY
           cmp #20
           beq .GoToNextLevel
-          inc 53280
+          inc VIC_BORDER_COLOR
           
 .NotDoneYet        
 
@@ -383,26 +453,7 @@ GameFlowControl
 !zone StartLevel
 StartLevel
           lda #0
-          sta 53248 + 21
-
-          lda #<TEXT_DISPLAY
-          sta ZEROPAGE_POINTER_1
-          lda #>TEXT_DISPLAY
-          sta ZEROPAGE_POINTER_1 + 1
-          lda #0
-          sta PARAM1
-          lda #23
-          sta PARAM2
-          jsr DisplayText
-          jsr DisplayLevelNumber
-          
-          ;full shells
-          lda #2
-          sta SCREEN_COLOR + 23 * 40 + 19
-          sta SCREEN_COLOR + 23 * 40 + 20
-          lda #7
-          sta SCREEN_COLOR + 24 * 40 + 19
-          sta SCREEN_COLOR + 24 * 40 + 20
+          sta VIC_SPRITE_ENABLE
 
           ;reset variables
           lda #0
@@ -410,10 +461,6 @@ StartLevel
           sta LEVEL_DONE_DELAY
           sta SPRITE_POS_X_EXTEND
           sta PLAYER_STAND_STILL_TIME
-          
-          lda #2
-          sta PLAYER_SHELLS
-          sta PLAYER_SHELLS_MAX
           
           ;reset all items
           ldx #0
@@ -472,9 +519,6 @@ CheckForHighscore
           jmp TitleScreen
           
 .IsHigher
-          lda PARAM1
-          sta 53280
-          
           ;shift older entries down, add new entry
           lda #( HIGHSCORE_ENTRY_COUNT - 1 )
           sta PARAM2
@@ -524,7 +568,163 @@ CheckForHighscore
           cpx #HIGHSCORE_SCORE_SIZE
           bne .SetNextScoreDigit
           
+          ;move names down
+          ;shift older entries down, add new entry
+          lda #( HIGHSCORE_ENTRY_COUNT - 1 )
+          sta PARAM2
+          
+          ;y carries the offset in the score text, position at start of second last entry
+          ldy #( ( HIGHSCORE_NAME_SIZE + 1 ) * ( HIGHSCORE_ENTRY_COUNT - 2 ) )
+          
+.CopyName
+          lda PARAM2
+          cmp PARAM1
+          beq .SetNewName
+          
+          ;copy name
+          ldx #0
+          
+.CopyNextNameChar
+          lda HIGHSCORE_NAME,y
+          sta HIGHSCORE_NAME + ( HIGHSCORE_NAME_SIZE + 1 ),y
+          
+          iny
+          inx
+          cpx #HIGHSCORE_NAME_SIZE
+          bne .CopyNextNameChar
+          
+          tya
+          sec
+          sbc #( HIGHSCORE_NAME_SIZE + HIGHSCORE_NAME_SIZE + 1 )
+          tay
+          dec PARAM2
+          jmp .CopyName
+
+
+.SetNewName
+          
+          ;calc y for new name offset
+          ldy PARAM1
+          
+          lda #0
+.AddNameOffset          
+          cpy #0
+          beq .NameOffsetFound
+          clc
+          adc #( HIGHSCORE_NAME_SIZE + 1 )
+          dey
+          jmp .AddNameOffset
+          
+.NameOffsetFound          
+          tay  
+
+          ;clear old name
+          ldx #0
+          sty PARAM3
+          lda #32
+          
+.ClearNextChar
+          sta HIGHSCORE_NAME,y
+          iny
+          inx
+          cpx #HIGHSCORE_NAME_SIZE
+          bne .ClearNextChar
+          
+          ldy PARAM3
+          
+          ;enter name
+          ldx #0
+          stx PARAM3
+          
+          jmp .ShowChar
+          
+.GetNextChar
+          sty PARAM4
+          
+          ;use ROM routines, read char
+          jsr KERNAL_GETIN
+          beq .GetNextChar
+
+          ;return pressed?
+          cmp #13
+          beq .EnterPressed
+
+          ;DEL pressed?
+          cmp #20
+          bne .NotDel
+          
+          ;DEL pressed
+          ldy PARAM4
+          ldx PARAM3
+          beq .GetNextChar
+          dec PARAM3
+          dey
+          dex
+          lda #32
+          sta HIGHSCORE_NAME,y
+          jmp .ShowChar
+
+.NotDel   
+          ldy PARAM4
+          ;pressed key >= 32 or <= 96?
+          cmp #32
+          bcc .GetNextChar
+          cmp #96
+          bcs .GetNextChar
+
+          ;max length reached already?
+          ldx PARAM3
+          cpx #HIGHSCORE_NAME_SIZE
+          bcs .GetNextChar
+          
+          ;save text
+          sta HIGHSCORE_NAME,y
+          iny
+          inx
+          
+.ShowChar           
+          stx PARAM3
+          sty PARAM4
+
+          ;display high scores
+          ;x,y pos of name
+          lda #6
+          sta PARAM1
+          lda #10
+          sta PARAM2
+
+          lda #<HIGHSCORE_NAME
+          sta ZEROPAGE_POINTER_1
+          lda #>HIGHSCORE_NAME
+          sta ZEROPAGE_POINTER_1 + 1
+
+          jsr DisplayText
+
+          ldx PARAM3
+          ldy PARAM4
+
+          jmp .GetNextChar
+
+.EnterPressed      
+          ;fill entry with blanks
+          lda #32
+          ldx PARAM3
+          ldy PARAM4
+          
+.FillNextChar          
+          cpx #HIGHSCORE_NAME_SIZE
+          beq .FilledUp
+          sta HIGHSCORE_NAME,y
+          iny
+          inx
+          jmp .FillNextChar          
+
+.FilledUp
           jmp TitleScreen
+          
+text     
+          !byte 0,0,0,0,0,0,0,0,0,0,0,0,0
+          
           
 
 ;------------------------------------------------------------
@@ -614,8 +814,8 @@ DeadControl
           
           ;enable sprite
           lda BIT_TABLE,x
-          ora 53248 + 21
-          sta 53248 + 21
+          ora VIC_SPRITE_ENABLE
+          sta VIC_SPRITE_ENABLE
           
           ;initialise enemy values
           lda #SPRITE_PLAYER
@@ -2240,7 +2440,7 @@ MoveSpriteLeft
           eor #$ff
           and SPRITE_POS_X_EXTEND
           sta SPRITE_POS_X_EXTEND
-          sta 53248 + 16
+          sta VIC_SPRITE_X_EXTEND
           
 .NoChangeInExtendedFlag     
           txa
@@ -2248,7 +2448,7 @@ MoveSpriteLeft
           tay
           
           lda SPRITE_POS_X,x
-          sta 53248,y
+          sta VIC_SPRITE_X_POS,y
           rts  
 
 ;------------------------------------------------------------
@@ -2264,7 +2464,7 @@ MoveSpriteRight
           lda BIT_TABLE,x
           ora SPRITE_POS_X_EXTEND
           sta SPRITE_POS_X_EXTEND
-          sta 53248 + 16
+          sta VIC_SPRITE_X_EXTEND
           
 .NoChangeInExtendedFlag     
           txa
@@ -2272,7 +2472,7 @@ MoveSpriteRight
           tay
           
           lda SPRITE_POS_X,x
-          sta 53248,y
+          sta VIC_SPRITE_X_POS,y
           rts  
 
 ;------------------------------------------------------------
@@ -2364,7 +2564,7 @@ CalcSpritePosFromCharPos
           eor #$ff
           and SPRITE_POS_X_EXTEND
           sta SPRITE_POS_X_EXTEND
-          sta 53248 + 16
+          sta VIC_SPRITE_X_EXTEND
           
           ;need extended x bit?
           lda PARAM1
@@ -2375,7 +2575,7 @@ CalcSpritePosFromCharPos
           lda BIT_TABLE,x
           ora SPRITE_POS_X_EXTEND
           sta SPRITE_POS_X_EXTEND
-          sta 53248 + 16
+          sta VIC_SPRITE_X_EXTEND
           
 .NoXBit   
           ;calculate sprite positions (offset from border)
@@ -2390,7 +2590,7 @@ CalcSpritePosFromCharPos
           clc
           adc #( 24 - SPRITE_CENTER_OFFSET_X )
           sta SPRITE_POS_X,x
-          sta 53248,y
+          sta VIC_SPRITE_X_POS,y
           
           lda PARAM2
           sta SPRITE_CHAR_POS_Y,x
@@ -2687,27 +2887,27 @@ BuildScreen
           
           ;enable sprite
           lda BIT_TABLE,x
-          ora 53248 + 21
-          sta 53248 + 21
+          ora VIC_SPRITE_ENABLE
+          sta VIC_SPRITE_ENABLE
 
           ;sprite color
           ldy SPRITE_ACTIVE,x
           lda TYPE_START_COLOR,y
-          sta 53248 + 39,x
+          sta VIC_SPRITE_COLOR,x
           
           lda TYPE_START_MULTICOLOR,y
           beq .NoMulticolor
           
           lda BIT_TABLE,x
-          ora 53248 + 28
-          sta 53248 + 28
+          ora VIC_SPRITE_MULTICOLOR
+          sta VIC_SPRITE_MULTICOLOR
           jmp .MultiColorDone
           
 .NoMulticolor          
           lda BIT_TABLE,x
           eor #$ff
-          and 53248 + 28
-          sta 53248 + 28
+          and VIC_SPRITE_MULTICOLOR
+          sta VIC_SPRITE_MULTICOLOR
 
 .MultiColorDone      
           
@@ -2796,8 +2996,8 @@ RemoveObject
           ;disable sprite          
           lda BIT_TABLE,x
           eor #$ff
-          and 53248 + 21
-          sta 53248 + 21
+          and VIC_SPRITE_ENABLE
+          sta VIC_SPRITE_ENABLE
           rts
 
 
