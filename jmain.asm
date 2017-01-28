@@ -3,6 +3,10 @@
 
 ;define constants here
 KERNAL_GETIN            = $ffe4
+KERNAL_SETMSG           = $ff90
+KERNAL_SETLFS           = $ffba
+KERNAL_SETNAM           = $ffbd
+KERNAL_LOAD             = $ffd5
 
 ;placeholder for various temp parameters
 PARAM1                  = $03
@@ -155,6 +159,16 @@ ITEM_COUNT              = 8
           lda CIA_PRA
           and #$fc
           sta CIA_PRA
+
+          ;check last used drive (or set to default)
+          lda $ba
+          sta DRIVE_NUMBER
+          bne .NoDefaultDriveNeeded
+          
+          lda #8
+          sta DRIVE_NUMBER
+.NoDefaultDriveNeeded          
+          jsr LoadScores
 
           ;----------------------------------
           ;copy charset and sprites to target          
@@ -720,6 +734,7 @@ CheckForHighscore
           jmp .FillNextChar          
 
 .FilledUp
+          jsr SaveScores
           jmp TitleScreen
           
 text     
@@ -3319,7 +3334,114 @@ DivideBy10
           adc #10
           rts
 
+
+;--------------------------------------------------
+;load high scores
+;returns 1 if ok, 0 otherwise
+;--------------------------------------------------
+!zone LoadScores
+LoadScores
+          ;disable kernal messages (don't want to see load error etc.)
+          lda #$00
+          jsr KERNAL_SETMSG
           
+          ;set logical file parameters
+          lda #15 
+          ldx DRIVE_NUMBER
+          ldy #0
+          jsr KERNAL_SETLFS
+          
+          ;set filename
+          lda #9
+          ldx #<HIGHSCORE_FILENAME
+          ldy #>HIGHSCORE_FILENAME
+          jsr KERNAL_SETNAM
+          
+          ;load to address
+          lda #$00                             ; 0 = load
+          ldx #<HIGHSCORE_SCORE
+          ldy #>HIGHSCORE_SCORE
+          jsr KERNAL_LOAD
+          bcs .LoadError                        ; Flag ob ok oder nicht steht im Carry
+          lda #1
+          rts
+
+.LoadError
+          lda #0
+          rts
+
+          
+;--------------------------------------------------
+;save high scores
+;--------------------------------------------------
+!zone SaveScores
+SaveScores
+
+          ;delete old save file first
+          lda #HIGHSCORE_DELETE_FILENAME_END - HIGHSCORE_DELETE_FILENAME
+          ldx #<HIGHSCORE_DELETE_FILENAME 
+          ldy #>HIGHSCORE_DELETE_FILENAME
+
+          jsr KERNAL_SETNAM
+          
+          lda #$0F      ; file number 15
+          ldx DRIVE_NUMBER
+          ldy #$0F      ; secondary address 15
+          jsr KERNAL_SETLFS
+
+          jsr $FFC0     ; call OPEN
+          ; if carry set, the file could not be opened
+          bcs .ErrorDelete
+
+          ldx #$0F      ; filenumber 15
+          jsr $FFC9     ; call CHKOUT (file 15 now used as output)
+
+.close
+          lda #$0F      ; filenumber 15
+          jsr $FFC3     ; call CLOSE
+
+          ldx #$00      ; filenumber 0
+          jsr $FFC9     ; call CHKOUT (reset output device)
+
+          jmp .SaveNow
+
+.ErrorDelete
+          ;Akkumulator contains BASIC error code
+
+          ;most likely errors:
+          ;A = $05 (DEVICE NOT PRESENT)
+
+          ;... error handling for open errors ...
+          lda #65
+          sta $cc00
+          jmp .close    ; even if OPEN failed, the file has to be closed
+
+.SaveNow
+          lda #9
+          ldx #<HIGHSCORE_FILENAME
+          ldy #>HIGHSCORE_FILENAME
+          jsr KERNAL_SETNAM
+          
+          lda #$00
+          ldx DRIVE_NUMBER
+          ldy #$00
+          jsr KERNAL_SETLFS
+
+          lda #<HIGHSCORE_SCORE
+          sta $C1
+          lda #>HIGHSCORE_SCORE
+          sta $C2
+
+          ldx #<HIGHSCORE_DATA_END
+          ldy #>HIGHSCORE_DATA_END
+          lda #$C1      ; start address located in $C1/$C2
+          jsr $FFD8     ; call SAVE
+          
+          ;if carry set, a save error has happened
+          ;bcs .SaveError    
+          rts
+
+
 ;------------------------------------------------------------
 ;screen data
 ;------------------------------------------------------------
@@ -3618,6 +3740,17 @@ TEXT_TITLE
 TEXT_FIRE_TO_START
           !text "PRESS FIRE TO PLAY*"
           
+DRIVE_NUMBER
+          !byte 8
+          
+HIGHSCORE_FILENAME
+          !text "HIGHSCORE"
+          
+HIGHSCORE_DELETE_FILENAME          
+          !text "S0:HIGHSCORE"
+HIGHSCORE_DELETE_FILENAME_END
+          
+          
 HIGHSCORE_SCORE
           !text "00050000-"
           !text "00040000-"
@@ -3637,6 +3770,7 @@ HIGHSCORE_NAME
           !text "SUPERNATURAL-"
           !text "SUPERNATURAL-"
           !text "SUPERNATURAL*"
+HIGHSCORE_DATA_END          
           
 SCREEN_LINE_OFFSET_TABLE_LO
           !byte ( SCREEN_CHAR +   0 ) & 0x00ff
