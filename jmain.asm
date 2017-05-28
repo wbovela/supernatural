@@ -64,7 +64,7 @@ SCREEN_BACK_COLOR       = $C400
 SPRITE_POINTER_BASE     = SCREEN_CHAR + 1016
 
 ;number of sprites divided by four
-NUMBER_OF_SPRITES_DIV_4 = 8
+NUMBER_OF_SPRITES_DIV_4       = 11
 
 ;sprite number constant
 SPRITE_BASE                   = 64
@@ -101,6 +101,17 @@ SPRITE_MUMMY_R_2              = SPRITE_BASE + 25
 SPRITE_PLAYER_RELOAD_R        = SPRITE_BASE + 30
 SPRITE_PLAYER_RELOAD_L        = SPRITE_BASE + 31
 
+SPRITE_ZOMBIE_WALK_R_1        = SPRITE_BASE + 32
+SPRITE_ZOMBIE_WALK_L_1        = SPRITE_BASE + 33
+SPRITE_ZOMBIE_WALK_R_2        = SPRITE_BASE + 34
+SPRITE_ZOMBIE_WALK_L_2        = SPRITE_BASE + 35
+SPRITE_ZOMBIE_COLLAPSE_R_1    = SPRITE_BASE + 36
+SPRITE_ZOMBIE_COLLAPSE_L_1    = SPRITE_BASE + 37
+SPRITE_ZOMBIE_COLLAPSE_R_2    = SPRITE_BASE + 38
+SPRITE_ZOMBIE_COLLAPSE_L_2    = SPRITE_BASE + 39
+
+SPRITE_INVISIBLE              = SPRITE_BASE + 40
+
 ;offset from calculated char pos to true sprite pos
 SPRITE_CENTER_OFFSET_X  = 8
 SPRITE_CENTER_OFFSET_Y  = 11
@@ -129,6 +140,7 @@ TYPE_BAT_LR             = 2
 TYPE_BAT_UD             = 3
 TYPE_BAT_8              = 4
 TYPE_MUMMY              = 5
+TYPE_ZOMBIE             = 6
 
 OBJECT_HEIGHT           = 8 * 2
 
@@ -221,7 +233,7 @@ ITEM_COUNT              = 8
           sta VIC_CHARSET_MULTICOLOR_2
           ;enable multi color charset
           lda VIC_CONTROL
-          ora #$10 ;%00010000
+          ora #$10
           sta VIC_CONTROL
 
           ;set sprite flags
@@ -237,7 +249,7 @@ ITEM_COUNT              = 8
           sta VIC_SPRITE_MULTICOLOR_2
           
           ;bitmap multicolor          
-          lda #$18		;%00011000 bit #4 is multi color on, #3=40 column mode
+          lda #$18
           sta $d016
           
           
@@ -353,7 +365,7 @@ TitleScreen
           ;setup level
           jsr StartLevel
           
-          lda #0
+          lda #1
           sta LEVEL_NR
           jsr BuildScreen
           
@@ -413,20 +425,20 @@ InitTitleIRQ
             
           sei
 
-          lda #$37 ; make sure that IO regs at $dxxx 
-          sta $01 ;are visible. $37 is the default value
+          lda #$37 ; make sure that IO regs at $dxxx
+          sta $01 ;are visible
 
           lda #$7f ;disable cia #1 generating timer irqs
           sta $dc0d ;which are used by the system to flash cursor, etc
 
           lda #$01 ;tell VIC we want him generate raster irqs
-          sta $d01a ; bit #0 = enable raster irq
+          sta $d01a
 
           lda #$10 ;nr of rasterline we want our irq occur at
-          sta $d012 ; $10=16 so start of third character line
+          sta $d012
 
           lda #$1b ;MSB of d011 is the MSB of the requested rasterline
-          sta $d011 ;as rastercounter goes from 0-312. $1b=%00011011
+          sta $d011 ;as rastercounter goes from 0-312
 
           ;set irq vector to point to our routine
           lda #<IrqSetBitmapMode
@@ -495,17 +507,17 @@ IrqSetBitmapMode
           sta $d012
 
           ;bitmap modus an
-          lda #$3b ; $3b=%00111011. bit#5 = enable bitmap mode
+          lda #$3b
           sta $D011 
 
           ;set VIC to bank 0
           lda $DD00
-          and #$fc ;%11111100
-          ora #$03 ;%00000011. value 3 = bank 0 = $0000 - $3FFF
+          and #$fc
+          ora #$03
           sta $dd00
 
           ;bitmap to lower half, screen char pos at 3 * 1024 ( + 16384)
-          lda #%10111000 ; bits #1-#3 are %100 meaning $2000-$3FFF in bitmap mode
+          lda #%10111000
           sta $D018
 
           JMP $ea31
@@ -537,11 +549,11 @@ IrqSetTextMode
 
           ;set VIC to bank 3
           lda $DD00
-          and #$fc ; bank 3 = value 0 = $C000-$FFFF
+          and #$fc
           sta $dd00
 
           ;bitmap to lower half, screen char pos at 3 * 1024 ( + 16384)
-          lda #%00111100; in text mode bits 1-3 are %110 = $3000-$37FF
+          lda #%00111100
           sta $D018
 
           jmp $ea31
@@ -1017,6 +1029,11 @@ CheckCollisions
           rts
           
 .CheckObject
+          ;only objects with states >= 128 are deadly
+          lda SPRITE_STATE,x
+          cmp #128
+          bcs .NextObject
+          
           stx PARAM2
           jsr IsEnemyCollidingWithPlayer
           bne .PlayerCollidedWithEnemy
@@ -1669,8 +1686,8 @@ FireShot
           
           lda (ZEROPAGE_POINTER_1),y
           jsr IsCharBlocking
-          bne .ShotDone
-          jmp .CheckHitEnemy
+          beq .CheckHitEnemy
+          rts
           
 .ShootRight
           iny
@@ -1723,7 +1740,24 @@ FireShot
           dec SPRITE_HP,x
           lda SPRITE_HP,x
           beq .EnemyKilled
-          jmp .ShotDone
+          
+          ;call enemy hit behaviour
+          ldy SPRITE_ACTIVE,x
+          ;enemy is active
+          dey
+          dey
+          lda ENEMY_HIT_BEHAVIOUR_TABLE_LO,y
+          sta ZEROPAGE_POINTER_1
+          lda ENEMY_HIT_BEHAVIOUR_TABLE_HI,y
+          sta ZEROPAGE_POINTER_1 + 1
+          
+          ;set up return address for rts
+          lda #>( .ShotDone - 1 )
+          pha 
+          lda #<( .ShotDone - 1 )
+          pha
+          
+          jmp (ZEROPAGE_POINTER_1)
           
           
 .EnemyKilled          
@@ -1927,6 +1961,27 @@ ObjectWalkLeft
           rts
           
 .CheckCanMoveLeft
+          jsr CanWalkLeft
+          beq .Blocked
+          
+          lda #8
+          sta SPRITE_CHAR_POS_X_DELTA,x
+          dec SPRITE_CHAR_POS_X,x
+          
+          jmp .CanMoveLeft
+          
+.Blocked          
+          rts
+
+
+;------------------------------------------------------------
+;checks if an object can walk left
+;x = object index
+;returns 0 if blocked
+;returns 1 if possible
+;------------------------------------------------------------
+!zone CanWalkLeft
+CanWalkLeft
           ldy SPRITE_CHAR_POS_Y,x
           lda SCREEN_LINE_OFFSET_TABLE_LO,y
           sta ZEROPAGE_POINTER_1
@@ -1965,16 +2020,14 @@ ObjectWalkLeft
           jsr IsCharBlocking
           bne .BlockedLeft
           
+          lda #1
+          rts
           
-          lda #8
-          sta SPRITE_CHAR_POS_X_DELTA,x
-          dec SPRITE_CHAR_POS_X,x
-          jmp .CanMoveLeft
           
 .BlockedLeft
           lda #0
           rts
-
+          
           
 ;------------------------------------------------------------
 ;PlayerMoveRight
@@ -2121,6 +2174,19 @@ ObjectWalkRight
           rts
           
 .CheckCanMoveRight
+          jsr CanWalkRight
+          bne .CanMoveRight
+          rts
+          
+          
+;------------------------------------------------------------
+;checks if an object can walk to the right
+;x = object index
+;returns 0 if blocked
+;returns 1 if possible
+;------------------------------------------------------------
+!zone CanWalkRight
+CanWalkRight
           ldy SPRITE_CHAR_POS_Y,x
           iny
           lda SCREEN_LINE_OFFSET_TABLE_LO,y
@@ -2157,12 +2223,13 @@ ObjectWalkRight
           jsr IsCharBlocking
           bne .BlockedRight
           
-          jmp .CanMoveRight
-          
-.BlockedRight 
-          lda #0
+          lda #1
           rts
           
+.BlockedRight          
+          lda #0
+          rts
+
 
 ;------------------------------------------------------------
 ;PlayerMoveUp
@@ -2590,6 +2657,210 @@ BehaviourMummy
           sta SPRITE_DIRECTION,x
           rts
  
+ 
+;------------------------------------------------------------
+;simply walk left/right, don't fall off
+;------------------------------------------------------------
+!zone BehaviourZombie
+BehaviourZombie
+          lda DELAYED_GENERIC_COUNTER
+          and #$03
+          beq .MovementUpdate
+          rts
+          
+.MovementUpdate
+          lda SPRITE_STATE,x
+          bne .OtherStates
+          jmp .NormalWalk
+          
+.OtherStates          
+          ;collapsing?
+          cmp #128
+          beq .Collapsing1
+          cmp #129
+          beq .Collapsing2
+          cmp #131
+          beq .WakeUp1
+          cmp #132
+          beq .WakeUp2
+          cmp #130
+          bne .NotHidden
+          jmp .Hidden
+          
+.NotHidden          
+          rts          
+          
+.Collapsing1
+          lda #SPRITE_ZOMBIE_COLLAPSE_R_2
+          clc
+          adc SPRITE_DIRECTION,x
+          sta SPRITE_POINTER_BASE,x
+          inc SPRITE_STATE,x
+          rts
+          
+.Collapsing2
+          lda #SPRITE_INVISIBLE
+          sta SPRITE_POINTER_BASE,x
+          
+          inc SPRITE_STATE,x
+
+          ;generate hidden time
+          jsr GenerateRandomNumber
+          clc
+          adc #25
+          sta SPRITE_MOVE_POS,x
+          
+          ;normalise position on full char
+          ldy SPRITE_CHAR_POS_X_DELTA,x
+          sty PARAM5
+.CheckXPos          
+          beq .XPosClear
+          jsr ObjectMoveLeft
+          dec PARAM5
+          jmp .CheckXPos
+          
+.XPosClear          
+          ldy SPRITE_CHAR_POS_Y_DELTA,x
+          sty PARAM5
+.CheckYPos          
+          beq .YPosClear
+          jsr ObjectMoveUp
+          dec PARAM5
+          jmp .CheckYPos
+.YPosClear          
+          rts
+          
+          
+.WakeUp1
+          lda #SPRITE_ZOMBIE_COLLAPSE_R_1
+          clc
+          adc SPRITE_DIRECTION,x
+          sta SPRITE_POINTER_BASE,x
+          inc SPRITE_STATE,x
+          rts
+          
+.WakeUp2
+          lda #SPRITE_ZOMBIE_WALK_R_1
+          clc
+          adc SPRITE_DIRECTION,x
+          sta SPRITE_POINTER_BASE,x
+          
+          lda #0
+          sta SPRITE_STATE,x
+          sta SPRITE_MOVE_POS,x
+          rts
+          
+          
+.NormalWalk          
+          inc SPRITE_MOVE_POS,x
+          lda SPRITE_MOVE_POS,x
+          and #$07
+          sta SPRITE_MOVE_POS,x
+          
+          cmp #4
+          
+          bpl .CanMove
+          rts
+
+.CanMove
+          lda SPRITE_DIRECTION,x
+          beq .MoveRight
+          
+          ;move left
+          jsr ObjectWalkLeft
+          beq .ToggleDirection
+          rts
+          
+.MoveRight
+          jsr ObjectWalkRight
+          beq .ToggleDirection
+          rts
+          
+.ToggleDirection
+          lda SPRITE_DIRECTION,x
+          eor #1
+          sta SPRITE_DIRECTION,x
+          rts
+ 
+.Hidden
+          ;are we apt to wake up?
+          dec SPRITE_MOVE_POS,x
+          bne .RandomMove
+
+          ;wake up          
+          inc SPRITE_STATE,x
+          lda #SPRITE_ZOMBIE_COLLAPSE_R_2
+          clc
+          adc SPRITE_DIRECTION,x
+          sta SPRITE_POINTER_BASE,x
+          rts
+          
+.RandomMove          
+          ;move randomly left/right
+          jsr GenerateRandomNumber
+          and #$01
+          beq .MoveLeft
+
+          ;move right if possible          
+          jsr CanWalkRight
+          beq .Blocked
+          
+          inc SPRITE_CHAR_POS_X,x
+          
+          ldy #8
+          sty PARAM5
+          
+.MoveSpriteRight          
+          jsr MoveSpriteRight
+          dec PARAM5
+          bne .MoveSpriteRight
+          rts          
+          
+.MoveLeft          
+          jsr CanWalkLeft
+          beq .Blocked
+          
+          dec SPRITE_CHAR_POS_X,x
+          
+          ldy #8
+          sty PARAM5
+          
+.MoveSpriteLeft
+          jsr MoveSpriteLeft
+          dec PARAM5
+          bne .MoveSpriteLeft
+          rts          
+
+.Blocked
+          rts
+          
+ 
+;------------------------------------------------------------
+;hit behaviour getting hurt
+;------------------------------------------------------------
+!zone HitBehaviourHurt
+HitBehaviourHurt
+          rts
+          
+ 
+;------------------------------------------------------------
+;hit behaviour crumbling (zombie)
+;------------------------------------------------------------
+!zone HitBehaviourCrumble
+HitBehaviourCrumble
+          lda SPRITE_STATE,x
+          bne .NoHit
+          lda #SPRITE_ZOMBIE_COLLAPSE_R_1
+          clc
+          adc SPRITE_DIRECTION,x
+          sta SPRITE_POINTER_BASE,x
+          
+          lda #128
+          sta SPRITE_STATE,x
+          
+.NoHit          
+          rts
+          
  
 ;------------------------------------------------------------
 ;Move Sprite Left
@@ -3088,6 +3359,7 @@ BuildScreen
           sta SPRITE_ANIM_POS,x
           sta SPRITE_ANIM_DELAY,x
           sta SPRITE_MOVE_POS,x
+          sta SPRITE_STATE,x
           
           ;adjust enemy counter
           ldx PARAM3
@@ -3632,6 +3904,7 @@ LEVEL_2
           !byte LD_LINE_H,19,19,3,96,13
           !byte LD_OBJECT,19,20,TYPE_PLAYER
           !byte LD_OBJECT,4,5,TYPE_BAT_LR
+          !byte LD_OBJECT,4,20,TYPE_ZOMBIE
           !byte LD_END
 
 LEVEL_BORDER_DATA
@@ -3700,7 +3973,9 @@ SPRITE_ANIM_DELAY
           !byte 0,0,0,0,0,0,0,0
 SPRITE_MOVE_POS
           !byte 0,0,0,0,0,0,0,0
-          
+SPRITE_STATE
+          !byte 0,0,0,0,0,0,0,0
+
           
 ITEM_ACTIVE
           !fill ITEM_COUNT,ITEM_NONE
@@ -3717,6 +3992,7 @@ ENEMY_BEHAVIOUR_TABLE_LO
           !byte <BehaviourBatUD
           !byte <BehaviourBat8
           !byte <BehaviourMummy
+          !byte <BehaviourZombie
           
 ENEMY_BEHAVIOUR_TABLE_HI
           !byte >PlayerControl
@@ -3724,6 +4000,22 @@ ENEMY_BEHAVIOUR_TABLE_HI
           !byte >BehaviourBatUD
           !byte >BehaviourBat8
           !byte >BehaviourMummy
+          !byte >BehaviourZombie
+          
+;behaviour for an enemy being hit          
+ENEMY_HIT_BEHAVIOUR_TABLE_LO          
+          !byte <HitBehaviourHurt     ;bat LR
+          !byte <HitBehaviourHurt     ;bat UD
+          !byte <HitBehaviourHurt     ;bat8
+          !byte <HitBehaviourHurt     ;mummy
+          !byte <HitBehaviourCrumble  ;zombie
+          
+ENEMY_HIT_BEHAVIOUR_TABLE_HI
+          !byte >HitBehaviourHurt     ;bat LR
+          !byte >HitBehaviourHurt     ;bat UD
+          !byte >HitBehaviourHurt     ;bat8
+          !byte >HitBehaviourHurt     ;mummy
+          !byte >HitBehaviourCrumble  ;zombie
           
 IS_TYPE_ENEMY
           !byte 0     ;dummy entry for inactive object
@@ -3732,6 +4024,7 @@ IS_TYPE_ENEMY
           !byte 1     ;bat_ud
           !byte 1     ;bat 8
           !byte 1     ;mummy
+          !byte 1     ;zombie
           
 TYPE_START_SPRITE
           !byte 0     ;dummy entry for inactive object
@@ -3740,6 +4033,7 @@ TYPE_START_SPRITE
           !byte SPRITE_BAT_1
           !byte SPRITE_BAT_2
           !byte SPRITE_MUMMY_R_1
+          !byte SPRITE_ZOMBIE_WALK_R_1
           
 TYPE_START_COLOR
           !byte 0
@@ -3748,6 +4042,7 @@ TYPE_START_COLOR
           !byte 3
           !byte 8
           !byte 1
+          !byte 5
           
 TYPE_START_MULTICOLOR
           !byte 0
@@ -3756,6 +4051,7 @@ TYPE_START_MULTICOLOR
           !byte 0
           !byte 0
           !byte 0
+          !byte 1
           
 TYPE_START_HP
           !byte 0
@@ -3764,6 +4060,7 @@ TYPE_START_HP
           !byte 5
           !byte 5
           !byte 10
+          !byte 8
           
 BAT_ANIMATION
           !byte SPRITE_BAT_1
