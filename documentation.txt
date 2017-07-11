@@ -1,0 +1,480 @@
+Supernatural documentation 
+
+Version: step 27
+Author: Wouter Bovelander (The Highlander)
+
+Data description
+
+This lists the data elements of Supernatural. For each element its name, initialisation value and a description is given. 
+Please note that tables are named to indicate how they are indexed, for example a table called SPRITE_xxxx is indexed by sprite number, while a table called TYPE_xxxx is indexed by sprite type.
+
+LEVEL_NR  
+          !byte 0
+
+Current number of the screen the player is playing on.
+
+BUTTON_PRESSED
+          !byte 0
+
+Records if the controller button is currently pressed. 0 = not pressed, anything else means pressed.
+
+BUTTON_RELEASED
+          !byte 0
+
+Records if the controller button is currently released after having been pressed before. 0 = not released, anything else means released.
+
+PLAYER_JUMP_POS
+          !byte 0
+
+Records the current index into PLAYER_JUMP_TABLE while he is jumping. 
+
+PLAYER_JUMP_TABLE
+          !byte 8,8,7,5,3,2,1,1,1,0
+
+A table indexed by PLAYER_JUMP_POS describing the number of pixels the player sprite moves up each frame while jumping. The down-movement of the player sprite is not included in this table and is handled by "gravity".
+
+PLAYER_FALL_POS
+          !byte 0
+
+Records the current index into FALL_SPEED_TABLE while he is falling.
+
+FALL_SPEED_TABLE
+          !byte 1,1,2,2,3,3,3,3,3,3
+
+A table indexed by PLAYER_FALL_POS describing the number of pixels the player falls (moves down) while falling, either after jumping or falling of a ledge.
+
+PLAYER_SHOT_PAUSE
+          !byte 0
+
+Records if the player is on shot-pause. Directly after shooting, the player has to wait to shoot again.
+
+PLAYER_LIVES
+          !byte 0
+
+Records the number of lives the player currently has.
+
+PLAYER_SHELLS
+          !byte 2
+
+Records the number of actual bullets (shells of the shotgun) the player currently has. This number cannot exceed the number in PLAYER_SHELLS_MAX
+
+PLAYER_SHELLS_MAX
+          !byte 2
+
+Records the number of shells the player can currently have. It does not record the number of actual bullets.
+
+PLAYER_STAND_STILL_TIME
+          !byte 0
+
+Records how many frames the player has stood still. This is used for reloading the shotgun.
+          
+SPRITE_HP
+          !byte 0,0,0,0,0,0,0,0
+          
+Records the number of health points (HP) each active sprite currently has. Indexed by sprite number.
+
+SPRITE_POS_X
+          !byte 0,0,0,0,0,0,0,0
+
+Records the x position (horizontal) of each active sprite in pixels. Indexed by sprite number.
+
+SPRITE_POS_X_EXTEND
+          !byte 0
+
+Records the x-extend bit per active sprite. The x position of each sprite can only go up to 255, which is less than the width of the screen. By turning on the extend bit for a sprite, the VIC chip moves the sprite beyond the 255 limit. Indexed by sprite number.
+
+SPRITE_CHAR_POS_X
+          !byte 0,0,0,0,0,0,0,0
+
+Records the x position of each active sprite in character positions. Each character is 8 pixels wide. Indexed by sprite number.
+
+SPRITE_CHAR_POS_X_DELTA
+          !byte 0,0,0,0,0,0,0,0
+
+Records the number of pixels each active sprite is not flush with a character position in the horizontal direction. Values of this table range between 0 and 7. Indexed by sprite number.
+
+SPRITE_CHAR_POS_Y
+          !byte 0,0,0,0,0,0,0,0
+
+Records the y position of each active sprite in character positions. Each character is 8 pixels high. Indexed by sprite number.
+
+SPRITE_CHAR_POS_Y_DELTA
+          !byte 0,0,0,0,0,0,0,0
+
+Records the number of pixels each active sprite is not flush with a character position in the vertical direction. Values of this table range between 0 and 7. Indexed by sprite number.
+
+SPRITE_POS_Y
+          !byte 0,0,0,0,0,0,0,0
+
+Records the y position (vertical) of each active sprite in pixels. Indexed by sprite number.
+
+SPRITE_ACTIVE
+          !byte 0,0,0,0,0,0,0,0
+
+This table is indexed by sprite number and yields the sprite type. A value other than 0 means the sprite slot is active. A value of 0 means the sprite slot is inactive and can be used to spawn a new object. The first position is always the player sprite.
+
+SPRITE_DIRECTION
+          !byte 0,0,0,0,0,0,0,0
+
+Records the current direction each sprite is going. 0 is right, 1 is left. Indexed by sprite number. This value is used to determine the correct sprite shape. Note that there are no values other than for left or right.
+
+SPRITE_FALLING
+          !byte 0,0,0,0,0,0,0,0
+
+Indexed by sprite number. Indicates whether or not a sprite is currently falling. 0 means not falling. 1 means falling.
+
+SPRITE_ANIM_POS
+          !byte 0,0,0,0,0,0,0,0
+
+Indexed by sprite number. Records each sprite's current animation position. This value is used to index the sprite shapes. By adding current sprite direction the correct shape for each sprite's animation can be found.
+
+SPRITE_ANIM_DELAY
+          !byte 0,0,0,0,0,0,0,0
+
+Indexed by sprite number. Records the number of frames are left to wait until the next animation shape can be shown.
+
+SPRITE_MOVE_POS
+          !byte 0,0,0,0,0,0,0,0
+
+Indexed by sprite number. When a sprite is moved in a certain pattern (for attacking for instance), this table records the index of the current list of positions.
+
+SPRITE_STATE
+          !byte 0,0,0,0,0,0,0,0
+
+Indexed by sprite number. Records the current state of a sprite. State can be used for anything to influence a sprite's behaviour. In certain states, some sprites will be undetected by collission detection.
+          
+ITEM_ACTIVE
+          !fill ITEM_COUNT,ITEM_NONE
+
+This table records active items (#ITEM_NONE = 255 = no active item, any other value = active) is indexed by item number and currently holds a maximum of 8 items. Items are not sprites.
+Since in this version there are only two item types (#ITEM_BULLET=0 and #ITEM_HEALTH=1) the functioning of this table is limited to only two values.
+
+ITEM_POS_X
+          !fill ITEM_COUNT,0
+
+Indexed by item number and records the horizontal character position of the item.
+
+ITEM_POS_Y
+          !fill ITEM_COUNT,0
+
+Indexed by item number and records the vertical character position of the item.
+
+ITEM_TIME
+          !fill ITEM_COUNT,0
+
+Indexed by item number and records the number of frames the item has been on screen. After 255 frames the item is removed automatically.
+          
+ENEMY_BEHAVIOUR_TABLE_LO          
+          !byte <PlayerControl
+          !byte <BehaviourBatLR
+          !byte <BehaviourBatUD
+          !byte <BehaviourBat8
+          !byte <BehaviourMummy
+          !byte <BehaviourZombie
+          !byte <BehaviourBatVanishing
+
+This table is indexed by sprite type and yields the low part of the address of the routine describing the sprite's behaviour.
+          
+ENEMY_BEHAVIOUR_TABLE_HI
+          !byte >PlayerControl
+          !byte >BehaviourBatLR
+          !byte >BehaviourBatUD
+          !byte >BehaviourBat8
+          !byte >BehaviourMummy
+          !byte >BehaviourZombie
+          !byte >BehaviourBatVanishing
+
+This table is indexed by sprite type and yields the high part of the address of the routine describing the sprite's behaviour.          
+          
+;behaviour for an enemy being hit          
+ENEMY_HIT_BEHAVIOUR_TABLE_LO          
+          !byte <HitBehaviourHurt     ;bat LR
+          !byte <HitBehaviourHurt     ;bat UD
+          !byte <HitBehaviourHurt     ;bat8
+          !byte <HitBehaviourHurt     ;mummy
+          !byte <HitBehaviourCrumble  ;zombie
+          !byte <HitBehaviourVanish   ;bat vanish
+
+This table is indexed by sprite type and yields the low part of the address of the routine describing the sprite's behaviour after it was hit.
+          
+ENEMY_HIT_BEHAVIOUR_TABLE_HI
+          !byte >HitBehaviourHurt     ;bat LR
+          !byte >HitBehaviourHurt     ;bat UD
+          !byte >HitBehaviourHurt     ;bat8
+          !byte >HitBehaviourHurt     ;mummy
+          !byte >HitBehaviourCrumble  ;zombie
+          !byte >HitBehaviourVanish   ;bat vanish
+          
+This table is indexed by sprite type and yields the high part of the address of the routine describing the sprite's behaviour after it was hit.
+
+IS_TYPE_ENEMY
+          !byte 0     ;dummy entry for inactive object
+          !byte 0     ;player
+          !byte 1     ;bat_lr
+          !byte 1     ;bat_ud
+          !byte 1     ;bat 8
+          !byte 1     ;mummy
+          !byte 1     ;zombie
+          !byte 1     ;bat vanish
+
+Indexed by sprite type and records whether the sprite type is considered to be an enemy or not. 
+          
+TYPE_START_SPRITE
+          !byte 0     ;dummy entry for inactive object
+          !byte SPRITE_PLAYER_STAND_R
+          !byte SPRITE_BAT_1
+          !byte SPRITE_BAT_1
+          !byte SPRITE_BAT_2
+          !byte SPRITE_MUMMY_R_1
+          !byte SPRITE_ZOMBIE_WALK_R_1
+          !byte SPRITE_BAT_1
+          
+This table contains the primary sprite shape to be used for each sprite type. This table is indexed by sprite type. Sprite shapes are organised in right, left pairs so that the SPRITE_DIRECTION value can be used to find the correct shape.
+
+TYPE_START_COLOR
+          !byte 0
+          !byte 10
+          !byte 3
+          !byte 3
+          !byte 8
+          !byte 1
+          !byte 5
+          !byte 3
+   
+The initial colour for each sprite type. Indexed by sprite type.
+
+TYPE_START_MULTICOLOR
+          !byte 0
+          !byte 1
+          !byte 0
+          !byte 0
+          !byte 0
+          !byte 0
+          !byte 1
+          !byte 0
+
+This table records whether a sprite type is a multicolour sprite or not. 0 is high definition (single colour), 1 is low definition (multi colour).
+          
+TYPE_START_HP
+          !byte 0
+          !byte 1
+          !byte 5
+          !byte 5
+          !byte 5
+          !byte 10
+          !byte 8
+          !byte 3
+          
+This table holds the starting amount of health points (HP) per sprite type.
+
+BAT_ANIMATION
+          !byte SPRITE_BAT_1
+          !byte SPRITE_BAT_2
+          !byte SPRITE_BAT_3
+          !byte SPRITE_BAT_2
+    
+This table lists the animations the Bat enemy goes through. It is indexed by the sprite's value in SPRITE_ANIM_POS. 
+
+PATH_8_DX
+          !byte $86
+          !byte $86
+          !byte $85
+          !byte $84
+          !byte $83
+          !byte $82
+          !byte $81
+          !byte 0
+          
+          !byte 0
+          !byte 1
+          !byte 2
+          !byte 3
+          !byte 4
+          !byte 5
+          !byte 6
+          !byte 6
+
+          !byte 6
+          !byte 6
+          !byte 5
+          !byte 4
+          !byte 3
+          !byte 2
+          !byte 1
+          !byte 0
+          
+          !byte 0
+          !byte $81
+          !byte $82
+          !byte $83
+          !byte $84
+          !byte $85
+          !byte $86
+          !byte $86
+  
+This table lists x (horizontal) values the figure 8 Bat enemy goes through. It is indexed by the sprite's value in SPRITE_MOVE_POS.
+
+PATH_8_DY
+          !byte 0
+          !byte 1
+          !byte 2
+          !byte 3
+          !byte 4
+          !byte 5
+          !byte 6
+          !byte 6
+
+          !byte 6
+          !byte 6
+          !byte 5
+          !byte 4
+          !byte 3
+          !byte 2
+          !byte 1
+          !byte 0
+          
+          !byte 0
+          !byte $81
+          !byte $82
+          !byte $83
+          !byte $84
+          !byte $85
+          !byte $86
+          !byte $86
+          
+          !byte $86
+          !byte $86
+          !byte $85
+          !byte $84
+          !byte $83
+          !byte $82
+          !byte $81
+          !byte 0
+ 
+This table lists y (vertical) values the figure 8 Bat enemy goes through. It is indexed by the sprite's value in SPRITE_MOVE_POS.
+
+NUMBER_ENEMIES_ALIVE
+          !byte 0
+
+Holds the current number of enemy sprites still alive. Used to decide whether to end the screen or not.
+
+LEVEL_DONE_DELAY
+          !byte 0
+
+This value is used delay the end of level to improve gameplay. Ending a screen results in a small pause before the next level starts.
+
+DELAYED_GENERIC_COUNTER
+          !byte 0
+          
+This value is used in many situations to introduce delays in actions, animations, moves, etc. 
+
+ITEM_CHAR_UL
+          !byte 4,8
+
+This table holds the character numbers of the Upper Left character of items. Each item is a tile of 2x2 characters. This table is indexed by item type.
+
+ITEM_COLOR_UL
+          !byte 7,2
+
+This table holds the colour numbers of the Upper Left character of items. Each item is a tile of 2x2 characters. This table is indexed by item type.          
+ITEM_CHAR_UR
+          !byte 5,9
+
+This table holds the character numbers of the Upper Right character of items. Each item is a tile of 2x2 characters. This table is indexed by item type.
+
+ITEM_COLOR_UR
+          !byte 4,2
+
+This table holds the colour numbers of the Upper Right character of items. Each item is a tile of 2x2 characters. This table is indexed by item type.          
+ITEM_CHAR_LL
+          !byte 6,10
+
+This table holds the character numbers of the Lower Left character of items. Each item is a tile of 2x2 characters. This table is indexed by item type.          
+ITEM_COLOR_LL
+          !byte 7,2
+
+This table holds the colour numbers of the Lower Left character of items. Each item is a tile of 2x2 characters. This table is indexed by item type.          
+ITEM_CHAR_LR
+          !byte 7,11
+
+This table holds the character numbers of the Lower Right character of items. Each item is a tile of 2x2 characters. This table is indexed by item type.          
+ITEM_COLOR_LR
+          !byte 4,2
+       
+This table holds the colour numbers of the Lower Right character of items. Each item is a tile of 2x2 characters. This table is indexed by item type.          
+BIT_TABLE
+          !byte 1,2,4,8,16,32,64,128
+
+This table is indexed by values 0 - 7 and yields the value of a byte that has only the bit set indicated by the index value.
+
+XBIT_TABLE
+          !byte 0,128
+
+Unused in this version.          
+          
+TEXT_PRESS_FIRE          
+          !text "PRESS FIRE TO RESTART*"
+
+The text that is shown to restart the game. End with an asteriks.
+
+TEXT_DISPLAY
+          !text " SCORE: 00000000   ",224,224,"         LEVEL: 00                    ",225,225,"         LIVES: 03 *"
+
+The text shown at the bottom of the screen, interspersed with the bullet item characters. They change colour when filled with actual bullets. Level number and number of lives are updated during play.
+
+TEXT_TITLE
+          ;          SSSSSSS    UUUUUU     PPPPPPP    EEEEEEE    RRRRRRR    NNNNNNN    AAAAAAA    TTTTTTTTTTT    UUUUUUU    RRRRRRR    AAAAAAA    LLLLLLL
+          !text "  ",229,228,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32,226, 32,32, 32, 32,32, 32, 32,32, 32, 32,32,226, 32,"  "
+          !text "  ",226, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32,227,229,228,32, 32, 32,32, 32, 32,32, 32, 32,32,226, 32,"  "
+          !text "  ",227,226,32,226,226,32,229,226,32,229,226,32,229,228,32,229,226,32,229,226,32, 32,226, 32,32,226,226,32,229,228,32,229,226,32,226, 32,"  "
+          !text "  ", 32,226,32,226,226,32,226,226,32,229,228,32,226, 32,32,226,226,32,229,226,32, 32,226, 32,32,226,226,32,226, 32,32,229,226,32,226, 32,"  "
+          !text "  ",227,228,32,227,228,32,229,228,32,227,228,32,228, 32,32,228,228,32,228,228,32, 32,228, 32,32,227,228,32,228, 32,32,228,228,32,227,228,"  "
+          !text "        ",226,"*"
+
+The titel screen in bitmap values.
+          
+TEXT_FIRE_TO_START
+          !text "PRESS FIRE TO PLAY*"
+    
+The text that is shown to start the game off. End with an asteriks.
+
+DRIVE_NUMBER
+          !byte 8
+
+The drive number used to write the high score table to. This may cause problems with saving because 8 might not always be correct.
+          
+HIGHSCORE_FILENAME
+          !text "HIGHSCORE"
+          
+The file name of the highscore table.
+
+HIGHSCORE_DELETE_FILENAME          
+          !text "S0:HIGHSCORE"
+HIGHSCORE_DELETE_FILENAME_END
+
+This string is used to overwrite the existing highscore table. S0 means scratch (delete) the file first.          
+          
+HIGHSCORE_SCORE
+          !text "00050000-"
+          !text "00040000-"
+          !text "00030000-"
+          !text "00020000-"
+          !text "00010000-"
+          !text "00001000-"
+          !text "00000300-"
+          !text "00000100*"
+          
+The actual highscore score table. Note the hyphens at the end of each line and the asteriks at the end. Value lengths cannot be changed without changing the code.
+
+HIGHSCORE_NAME
+          !text "SUPERNATURAL-"
+          !text "SUPERNATURAL-"
+          !text "SUPERNATURAL-"
+          !text "SUPERNATURAL-"
+          !text "SUPERNATURAL-"
+          !text "SUPERNATURAL-"
+          !text "SUPERNATURAL-"
+          !text "SUPERNATURAL*"
+HIGHSCORE_DATA_END 
+
+The actual highscore name table. Note the hyphens at the end of each line and the asteriks at the end. Name lengths cannot be changed without changing the code.

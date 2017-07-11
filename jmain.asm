@@ -111,6 +111,7 @@ SPRITE_ZOMBIE_COLLAPSE_R_2    = SPRITE_BASE + 38
 SPRITE_ZOMBIE_COLLAPSE_L_2    = SPRITE_BASE + 39
 
 SPRITE_INVISIBLE              = SPRITE_BASE + 40
+SPRITE_BAT_VANISH             = SPRITE_BASE + 41
 
 ;offset from calculated char pos to true sprite pos
 SPRITE_CENTER_OFFSET_X  = 8
@@ -141,6 +142,7 @@ TYPE_BAT_UD             = 3
 TYPE_BAT_8              = 4
 TYPE_MUMMY              = 5
 TYPE_ZOMBIE             = 6
+TYPE_BAT_VANISH         = 7
 
 OBJECT_HEIGHT           = 8 * 2
 
@@ -365,7 +367,7 @@ TitleScreen
           ;setup level
           jsr StartLevel
           
-          lda #1
+          lda #2
           sta LEVEL_NR
           jsr BuildScreen
           
@@ -2836,6 +2838,241 @@ BehaviourZombie
           
  
 ;------------------------------------------------------------
+;vanishing bat
+;------------------------------------------------------------
+!zone BehaviourBatVanishing
+BehaviourBatVanishing
+          lda SPRITE_STATE,x
+          bne .NotNormal
+          jmp .NormalUpdate
+          
+.NotNormal
+          cmp #128
+          beq .Vanish1
+          cmp #129
+          beq .Hidden
+          cmp #130
+          beq .Spawn
+          cmp #1
+          bne .NoSpecialBehaviour
+          jmp .AttackFlight
+          
+.NoSpecialBehaviour          
+          rts
+          
+.Vanish1
+          lda DELAYED_GENERIC_COUNTER
+          and #$07
+          bne .NoSpecialBehaviour
+          
+          lda #SPRITE_INVISIBLE
+          sta SPRITE_POINTER_BASE,x
+          
+          inc SPRITE_STATE,x
+          jsr GenerateRandomNumber
+          adc #24
+          sta SPRITE_MOVE_POS,x
+          rts
+          
+.Spawn          
+          lda DELAYED_GENERIC_COUNTER
+          and #$07
+          bne .NoSpecialBehaviour
+          
+          lda #1
+          sta SPRITE_STATE,x
+          lda #SPRITE_BAT_1
+          sta SPRITE_POINTER_BASE,x
+          rts
+
+.Hidden
+          dec SPRITE_MOVE_POS,x
+          beq .Unhide
+          rts
+          
+.Unhide
+
+          ;position diagonal above/below player
+          lda SPRITE_CHAR_POS_X
+          cmp #10
+          bcc .SpawnOnRight
+          cmp #30
+          bcs .SpawnOnLeft
+          
+          ;randomly choose
+          jsr GenerateRandomNumber
+          and #$01
+          beq .SpawnOnRight
+          
+          
+.SpawnOnLeft
+          lda SPRITE_CHAR_POS_X
+          sec
+          sbc #5
+          sta PARAM1
+          
+          lda #0
+          sta SPRITE_DIRECTION,x
+          jmp .FindYSpawnPos
+
+          
+.SpawnOnRight          
+          lda SPRITE_CHAR_POS_X
+          clc
+          adc #5
+          sta PARAM1
+
+          lda #1
+          sta SPRITE_DIRECTION,x
+
+.FindYSpawnPos
+          lda SPRITE_CHAR_POS_Y
+          cmp #5
+          bcc .SpawnBelow
+          cmp #15
+          bcs .SpawnAbove
+          
+          ;randomly choose
+          jsr GenerateRandomNumber
+          and #$01
+          beq .SpawnAbove
+
+.SpawnBelow         
+          lda SPRITE_CHAR_POS_Y
+          clc
+          adc #5
+          sta PARAM2
+          
+          lda #0
+          sta SPRITE_FALLING,x
+          jmp .Reposition
+
+.SpawnAbove
+          lda SPRITE_CHAR_POS_Y
+          sec
+          sbc #5
+          sta PARAM2
+
+          lda #1
+          sta SPRITE_FALLING,x
+          
+.Reposition
+          jsr CalcSpritePosFromCharPos
+          
+          inc SPRITE_STATE,x
+          
+          lda #SPRITE_BAT_VANISH
+          sta SPRITE_POINTER_BASE,x
+          rts
+          
+          
+.NormalUpdate          
+          lda DELAYED_GENERIC_COUNTER
+          and #$03
+          bne .NoAnimUpdate
+          
+          inc SPRITE_ANIM_POS,x
+          lda SPRITE_ANIM_POS,x
+          and #$03
+          sta SPRITE_ANIM_POS,x
+          
+          tay
+          lda BAT_ANIMATION,y
+          sta SPRITE_POINTER_BASE,x
+          
+.NoAnimUpdate          
+          lda SPRITE_STATE,x
+          bne .NoAction
+          
+          lda SPRITE_DIRECTION,x
+          beq .MoveRight
+          
+          ;move left
+          jsr ObjectMoveLeftBlocking
+          beq .ToggleDirection
+          rts
+          
+.MoveRight
+          jsr ObjectMoveRightBlocking
+          beq .ToggleDirection
+          rts
+          
+.ToggleDirection
+          lda SPRITE_DIRECTION,x
+          eor #1
+          sta SPRITE_DIRECTION,x
+.NoAction          
+          rts
+ 
+ 
+.AttackFlight
+          inc SPRITE_MOVE_POS,x
+          lda SPRITE_MOVE_POS,x
+          cmp #80
+          beq .AttackDone
+          cmp #40
+          beq .ChangeFlyDirection
+          
+          ;fly towards player
+          lda SPRITE_DIRECTION,x
+          beq .FlyRight
+          
+          stx PARAM5
+          jsr ObjectMoveLeft
+          jmp .FlyUpDown
+          
+.FlyRight
+          stx PARAM5
+          jsr ObjectMoveRight
+          
+.FlyUpDown          
+          ldx PARAM5
+          lda SPRITE_FALLING,x
+          beq .FlyUp
+          
+          jsr ObjectMoveDown
+          rts
+          
+.FlyUp
+          jsr ObjectMoveUp
+          rts
+          
+.ChangeFlyDirection
+          ;change direction to avoid flying out of the screen
+          lda SPRITE_CHAR_POS_Y,x
+          cmp #5
+          bcc .ChangeY
+          cmp #18
+          bcc .CheckXDir
+          
+.ChangeY
+          lda SPRITE_FALLING,x
+          eor #$01
+          sta SPRITE_FALLING,x
+          
+.CheckXDir          
+          lda SPRITE_CHAR_POS_X,x
+          cmp #5
+          bcc .ChangeX
+          cmp #32
+          bcs .ChangeX
+          rts
+          
+.ChangeX
+          lda SPRITE_DIRECTION,x
+          eor #$01
+          sta SPRITE_DIRECTION,x
+          rts
+
+.AttackDone
+          ;auto-vanish
+          lda #0
+          sta SPRITE_STATE,x
+          jmp HitBehaviourVanish
+          
+ 
+ 
+;------------------------------------------------------------
 ;hit behaviour getting hurt
 ;------------------------------------------------------------
 !zone HitBehaviourHurt
@@ -2853,6 +3090,24 @@ HitBehaviourCrumble
           lda #SPRITE_ZOMBIE_COLLAPSE_R_1
           clc
           adc SPRITE_DIRECTION,x
+          sta SPRITE_POINTER_BASE,x
+          
+          lda #128
+          sta SPRITE_STATE,x
+          
+.NoHit          
+          rts
+          
+ 
+;------------------------------------------------------------
+;hit behaviour vanishing bat
+;------------------------------------------------------------
+!zone HitBehaviourVanish
+HitBehaviourVanish
+          lda SPRITE_STATE,x
+          bne .NoHit
+          
+          lda #SPRITE_BAT_VANISH
           sta SPRITE_POINTER_BASE,x
           
           lda #128
@@ -3864,57 +4119,6 @@ SaveScores
 
 
 ;------------------------------------------------------------
-;screen data
-;------------------------------------------------------------
-SCREEN_DATA_TABLE
-          !word LEVEL_1
-          !word LEVEL_2
-          !word 0
-          
-          
-LEVEL_1
-          !byte LD_LINE_H,5,5,10,96,13
-          !byte LD_LINE_H,12,7,8,96,13
-          !byte LD_LINE_H,30,12,9,97,13
-          !byte LD_LINE_H,10,19,20,96,13
-          !byte LD_LINE_V,7,6,4,128,9
-          !byte LD_LINE_H,19,8,3,96,13
-          !byte LD_LINE_H,24,10,4,96,13
-          !byte LD_LINE_H,20,11,4,96,13
-          !byte LD_LINE_H,16,12,4,96,13
-          !byte LD_LINE_H,12,13,4,96,13
-          !byte LD_LINE_H,8,14,4,96,13
-          !byte LD_LINE_H,6,16,5,96,13
-          !byte LD_OBJECT,5,4,TYPE_PLAYER
-          !byte LD_OBJECT,34,11,TYPE_BAT_LR
-          !byte LD_OBJECT,31,12,TYPE_BAT_8
-          !byte LD_OBJECT,10,18,TYPE_BAT_UD
-          !byte LD_OBJECT,20,18,TYPE_MUMMY
-          !byte LD_END
-
-LEVEL_2
-          !byte LD_LINE_H,5,5,10,96,13
-          !byte LD_LINE_H,1,21,38,96,13
-          !byte LD_LINE_H,7,7,3,96,13
-          !byte LD_LINE_H,9,9,3,96,13
-          !byte LD_LINE_H,11,11,3,96,13
-          !byte LD_LINE_H,13,13,3,96,13
-          !byte LD_LINE_H,15,15,3,96,13
-          !byte LD_LINE_H,17,17,3,96,13
-          !byte LD_LINE_H,19,19,3,96,13
-          !byte LD_OBJECT,19,20,TYPE_PLAYER
-          !byte LD_OBJECT,4,5,TYPE_BAT_LR
-          !byte LD_OBJECT,4,20,TYPE_ZOMBIE
-          !byte LD_END
-
-LEVEL_BORDER_DATA
-          !byte LD_LINE_H,0,0,40,128,9
-          !byte LD_LINE_H,1,22,38,129,9
-          !byte LD_LINE_V,0,1,22,128,9
-          !byte LD_LINE_V,39,1,22,129,9
-          !byte LD_END
-
-;------------------------------------------------------------
 ;game variables
 ;------------------------------------------------------------
 
@@ -3993,6 +4197,7 @@ ENEMY_BEHAVIOUR_TABLE_LO
           !byte <BehaviourBat8
           !byte <BehaviourMummy
           !byte <BehaviourZombie
+          !byte <BehaviourBatVanishing
           
 ENEMY_BEHAVIOUR_TABLE_HI
           !byte >PlayerControl
@@ -4001,6 +4206,7 @@ ENEMY_BEHAVIOUR_TABLE_HI
           !byte >BehaviourBat8
           !byte >BehaviourMummy
           !byte >BehaviourZombie
+          !byte >BehaviourBatVanishing
           
 ;behaviour for an enemy being hit          
 ENEMY_HIT_BEHAVIOUR_TABLE_LO          
@@ -4009,6 +4215,7 @@ ENEMY_HIT_BEHAVIOUR_TABLE_LO
           !byte <HitBehaviourHurt     ;bat8
           !byte <HitBehaviourHurt     ;mummy
           !byte <HitBehaviourCrumble  ;zombie
+          !byte <HitBehaviourVanish   ;bat vanish
           
 ENEMY_HIT_BEHAVIOUR_TABLE_HI
           !byte >HitBehaviourHurt     ;bat LR
@@ -4016,6 +4223,7 @@ ENEMY_HIT_BEHAVIOUR_TABLE_HI
           !byte >HitBehaviourHurt     ;bat8
           !byte >HitBehaviourHurt     ;mummy
           !byte >HitBehaviourCrumble  ;zombie
+          !byte >HitBehaviourVanish   ;bat vanish
           
 IS_TYPE_ENEMY
           !byte 0     ;dummy entry for inactive object
@@ -4025,6 +4233,7 @@ IS_TYPE_ENEMY
           !byte 1     ;bat 8
           !byte 1     ;mummy
           !byte 1     ;zombie
+          !byte 1     ;bat vanish
           
 TYPE_START_SPRITE
           !byte 0     ;dummy entry for inactive object
@@ -4034,6 +4243,7 @@ TYPE_START_SPRITE
           !byte SPRITE_BAT_2
           !byte SPRITE_MUMMY_R_1
           !byte SPRITE_ZOMBIE_WALK_R_1
+          !byte SPRITE_BAT_1
           
 TYPE_START_COLOR
           !byte 0
@@ -4043,6 +4253,7 @@ TYPE_START_COLOR
           !byte 8
           !byte 1
           !byte 5
+          !byte 3
           
 TYPE_START_MULTICOLOR
           !byte 0
@@ -4052,6 +4263,7 @@ TYPE_START_MULTICOLOR
           !byte 0
           !byte 0
           !byte 1
+          !byte 0
           
 TYPE_START_HP
           !byte 0
@@ -4061,12 +4273,14 @@ TYPE_START_HP
           !byte 5
           !byte 10
           !byte 8
+          !byte 3
           
 BAT_ANIMATION
           !byte SPRITE_BAT_1
           !byte SPRITE_BAT_2
           !byte SPRITE_BAT_3
           !byte SPRITE_BAT_2
+          
 PATH_8_DX
           !byte $86
           !byte $86
@@ -4218,99 +4432,6 @@ HIGHSCORE_NAME
           !text "SUPERNATURAL*"
 HIGHSCORE_DATA_END          
           
-SCREEN_LINE_OFFSET_TABLE_LO
-          !byte ( SCREEN_CHAR +   0 ) & 0x00ff
-          !byte ( SCREEN_CHAR +  40 ) & 0x00ff
-          !byte ( SCREEN_CHAR +  80 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 120 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 160 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 200 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 240 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 280 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 320 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 360 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 400 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 440 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 480 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 520 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 560 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 600 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 640 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 680 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 720 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 760 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 800 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 840 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 880 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 920 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 960 ) & 0x00ff
-          
-SCREEN_LINE_OFFSET_TABLE_HI
-          !byte ( ( SCREEN_CHAR +   0 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR +  40 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR +  80 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 120 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 160 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 200 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 240 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 280 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 320 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 360 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 400 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 440 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 480 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 520 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 560 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 600 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 640 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 680 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 720 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 760 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 800 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 840 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 880 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 920 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 960 ) & 0xff00 ) >> 8
-          
-SCREEN_BACK_LINE_OFFSET_TABLE_HI
-          !byte ( ( SCREEN_BACK_CHAR +   0 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR +  40 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR +  80 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 120 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 160 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 200 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 240 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 280 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 320 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 360 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 400 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 440 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 480 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 520 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 560 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 600 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 640 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 680 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 720 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 760 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 800 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 840 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 880 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 920 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 960 ) & 0xff00 ) >> 8
-
-TITLE_LOGO_COLORRAM
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-
 ;place the data at a valid bitmap position, this avoids copying the data        
 * = $2000        
 TITLE_LOGO_BMP_DATA
@@ -4397,6 +4518,98 @@ TITLE_LOGO_BMP_DATA
 
 
         ;here is some free memory in between!
+TITLE_LOGO_COLORRAM
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+
+SCREEN_LINE_OFFSET_TABLE_LO
+          !byte ( SCREEN_CHAR +   0 ) & 0x00ff
+          !byte ( SCREEN_CHAR +  40 ) & 0x00ff
+          !byte ( SCREEN_CHAR +  80 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 120 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 160 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 200 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 240 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 280 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 320 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 360 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 400 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 440 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 480 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 520 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 560 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 600 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 640 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 680 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 720 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 760 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 800 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 840 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 880 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 920 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 960 ) & 0x00ff
+          
+SCREEN_LINE_OFFSET_TABLE_HI
+          !byte ( ( SCREEN_CHAR +   0 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR +  40 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR +  80 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 120 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 160 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 200 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 240 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 280 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 320 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 360 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 400 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 440 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 480 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 520 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 560 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 600 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 640 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 680 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 720 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 760 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 800 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 840 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 880 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 920 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 960 ) & 0xff00 ) >> 8
+          
+SCREEN_BACK_LINE_OFFSET_TABLE_HI
+          !byte ( ( SCREEN_BACK_CHAR +   0 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR +  40 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR +  80 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 120 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 160 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 200 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 240 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 280 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 320 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 360 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 400 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 440 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 480 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 520 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 560 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 600 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 640 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 680 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 720 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 760 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 800 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 840 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 880 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 920 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 960 ) & 0xff00 ) >> 8
         
 * = $2c00
 TITLE_LOGO_SCREEN_CHAR
@@ -4410,6 +4623,68 @@ TITLE_LOGO_SCREEN_CHAR
         !byte 32,0,0,32,32,0,32,0,0,32,32,0,32,32,0,0,0,0,0,160,0,0,0,0,32,160,0,0,0,0,0,0
         !byte 0,0,0,0,0,0,0,0,160,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
         !byte 160,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+
+;------------------------------------------------------------
+;screen data
+;------------------------------------------------------------
+SCREEN_DATA_TABLE
+          !word LEVEL_1
+          !word LEVEL_2
+          !word LEVEL_3
+          !word 0
+          
+          
+LEVEL_1
+          !byte LD_LINE_H,5,5,10,96,13
+          !byte LD_LINE_H,12,7,8,96,13
+          !byte LD_LINE_H,30,12,9,97,13
+          !byte LD_LINE_H,10,19,20,96,13
+          !byte LD_LINE_V,7,6,4,128,9
+          !byte LD_LINE_H,19,8,3,96,13
+          !byte LD_LINE_H,24,10,4,96,13
+          !byte LD_LINE_H,20,11,4,96,13
+          !byte LD_LINE_H,16,12,4,96,13
+          !byte LD_LINE_H,12,13,4,96,13
+          !byte LD_LINE_H,8,14,4,96,13
+          !byte LD_LINE_H,6,16,5,96,13
+          !byte LD_OBJECT,5,4,TYPE_PLAYER
+          !byte LD_OBJECT,34,11,TYPE_BAT_LR
+          !byte LD_OBJECT,31,12,TYPE_BAT_8
+          !byte LD_OBJECT,10,18,TYPE_BAT_UD
+          !byte LD_OBJECT,20,18,TYPE_MUMMY
+          !byte LD_END
+
+LEVEL_2
+          !byte LD_LINE_H,5,5,10,96,13
+          !byte LD_LINE_H,1,21,38,96,13
+          !byte LD_LINE_H,7,7,3,96,13
+          !byte LD_LINE_H,9,9,3,96,13
+          !byte LD_LINE_H,11,11,3,96,13
+          !byte LD_LINE_H,13,13,3,96,13
+          !byte LD_LINE_H,15,15,3,96,13
+          !byte LD_LINE_H,17,17,3,96,13
+          !byte LD_LINE_H,19,19,3,96,13
+          !byte LD_OBJECT,19,20,TYPE_PLAYER
+          !byte LD_OBJECT,4,5,TYPE_BAT_LR
+          !byte LD_OBJECT,4,20,TYPE_ZOMBIE
+          !byte LD_END
+
+LEVEL_3
+          !byte LD_LINE_H,25,15,10,96,13
+          !byte LD_LINE_H,17,18,8,96,13
+          !byte LD_LINE_H,5,15,10,96,13
+          !byte LD_LINE_H,25,21,8,96,13
+          !byte LD_OBJECT,30,14,TYPE_PLAYER
+          !byte LD_OBJECT,9,12,TYPE_BAT_VANISH
+          !byte LD_END
+
+LEVEL_BORDER_DATA
+          !byte LD_LINE_H,0,0,40,128,9
+          !byte LD_LINE_H,1,22,38,129,9
+          !byte LD_LINE_V,0,1,22,128,9
+          !byte LD_LINE_V,39,1,22,129,9
+          !byte LD_END
+
         
 
 CHARSET
