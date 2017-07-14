@@ -14,6 +14,7 @@ PARAM2                  = $04
 PARAM3                  = $05
 PARAM4                  = $06
 PARAM5                  = $07
+PARAM6                  = $08
 
 ;placeholder for zero page pointers
 ZEROPAGE_POINTER_1      = $17
@@ -134,6 +135,10 @@ LD_END                  = 0
 LD_LINE_H               = 1     ;data contains x,y,width,char,color
 LD_LINE_V               = 2     ;data contains x,y,height,char,color
 LD_OBJECT               = 3     ;data contains x,y,type
+LD_AREA                 = 4     ;data contains x,y,width,height,char,color
+LD_LINE_H_ALT           = 5     ;data contains x,y,width,char,color
+LD_LINE_V_ALT           = 6     ;data contains x,y,height,char,color
+LD_QUAD                 = 7     ;data contains x,y,quad_id
 
 ;object type constants
 TYPE_PLAYER             = 1
@@ -367,7 +372,7 @@ TitleScreen
           ;setup level
           jsr StartLevel
           
-          lda #2
+          lda #0
           sta LEVEL_NR
           jsr BuildScreen
           
@@ -3398,21 +3403,39 @@ BuildScreen
           iny
           
           lda (ZEROPAGE_POINTER_1),y
-          cmp #LD_END
-          beq .LevelComplete
-          cmp #LD_LINE_H
-          beq .LineH
-          cmp #LD_LINE_V
-          beq .LineV
-          cmp #LD_OBJECT
-          bne .NotAnObject
-          jmp .Object
-.NotAnObject  
+          tax
+          
+          lda LEVEL_ELEMENT_TABLE_LO,x
+          sta ZEROPAGE_POINTER_4
+          lda LEVEL_ELEMENT_TABLE_HI,x
+          sta ZEROPAGE_POINTER_4 + 1
+          
+          jmp (ZEROPAGE_POINTER_4)
+          
+LEVEL_ELEMENT_TABLE_LO
+          !byte <.LevelComplete
+          !byte <LevelLineH
+          !byte <LevelLineV
+          !byte <LevelObject
+          !byte <LevelArea
+          !byte <LevelLineHAlternating
+          !byte <LevelLineVAlternating
+          !byte <LevelQuad
+          
+LEVEL_ELEMENT_TABLE_HI
+          !byte >.LevelComplete
+          !byte >LevelLineH
+          !byte >LevelLineV
+          !byte >LevelObject
+          !byte >LevelArea
+          !byte >LevelLineHAlternating
+          !byte >LevelLineVAlternating
+          !byte >LevelQuad
           
 .LevelComplete          
           rts
           
-.NextLevelData
+NextLevelData
           pla
           
           ;adjust pointers so we're able to access more 
@@ -3428,7 +3451,8 @@ BuildScreen
           
           jmp .LevelDataLoop
 
-.LineH
+!zone LevelLineH
+LevelLineH
           ;X pos
           iny
           lda (ZEROPAGE_POINTER_1),y
@@ -3478,9 +3502,10 @@ BuildScreen
           dec PARAM3
           bne .NextChar
           
-          jmp .NextLevelData
-          
-.LineV
+          jmp NextLevelData
+
+!zone LevelLineV          
+LevelLineV
           ;X pos
           iny
           lda (ZEROPAGE_POINTER_1),y
@@ -3543,9 +3568,10 @@ BuildScreen
           dec PARAM3
           bne .NextCharV
           
-          jmp .NextLevelData
-          
-.Object
+          jmp NextLevelData
+       
+!zone LevelObject       
+LevelObject
           ;X pos
           iny
           lda (ZEROPAGE_POINTER_1),y
@@ -3626,16 +3652,309 @@ BuildScreen
 .NoEnemy
           
 .NoFreeSlot                    
-          jmp .NextLevelData
+          jmp NextLevelData
+
+
+!zone LevelArea
+LevelArea
+          ;X pos
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta PARAM1 
           
+          ;Y pos
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          tax
+          lda SCREEN_LINE_OFFSET_TABLE_LO,x
+          sta ZEROPAGE_POINTER_2
+          sta ZEROPAGE_POINTER_3
+          lda SCREEN_LINE_OFFSET_TABLE_HI,x
+          sta ZEROPAGE_POINTER_2 + 1
+          clc
+          adc #( ( SCREEN_COLOR - SCREEN_CHAR ) & 0xff00 ) >> 8
+          sta ZEROPAGE_POINTER_3 + 1
+
+          ;width
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta PARAM2
+          sta PARAM6
           
+          ;height
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta PARAM3
+          
+          ;char
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta PARAM4
+          
+          ;color
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta PARAM5
+          
+          ;store target pointers to screen and color ram
+          tya
+          pha
+          
+.NextLineArea          
+          ldy PARAM1
+.NextCharArea
+          lda PARAM4
+          sta (ZEROPAGE_POINTER_2),y
+          lda PARAM5
+          sta (ZEROPAGE_POINTER_3),y
+          iny
+          dec PARAM2
+          bne .NextCharArea
+          
+          dec PARAM3
+          beq .AreaDone
+          
+          ;move pointers down a line
+          tya
+          sec
+          sbc #40
+          tay
+          
+          lda ZEROPAGE_POINTER_2
+          clc
+          adc #40
+          sta ZEROPAGE_POINTER_2
+          sta ZEROPAGE_POINTER_3
+          
+          lda ZEROPAGE_POINTER_2 + 1
+          adc #0
+          sta ZEROPAGE_POINTER_2 + 1
+          clc
+          adc #( ( SCREEN_COLOR - SCREEN_CHAR ) & 0xff00 ) >> 8
+          sta ZEROPAGE_POINTER_3 + 1
+          
+          lda PARAM6
+          sta PARAM2
+          jmp .NextLineArea
+          
+.AreaDone          
+          jmp NextLevelData
+          
+
+
+!zone LevelLineHAlternating
+LevelLineHAlternating
+          ;X pos
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta PARAM1 
+          
+          ;Y pos
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta PARAM2
+
+          ;width
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta PARAM3
+          
+          ;char
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta PARAM4
+          
+          ;color
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta PARAM5
+          
+          ;store target pointers to screen and color ram
+          ldx PARAM2
+          lda SCREEN_LINE_OFFSET_TABLE_LO,x
+          sta ZEROPAGE_POINTER_2
+          sta ZEROPAGE_POINTER_3
+          lda SCREEN_LINE_OFFSET_TABLE_HI,x
+          sta ZEROPAGE_POINTER_2 + 1
+          clc
+          adc #( ( SCREEN_COLOR - SCREEN_CHAR ) & 0xff00 ) >> 8
+          sta ZEROPAGE_POINTER_3 + 1
+          
+          tya
+          pha
+          
+          ldy PARAM1
+.NextChar          
+          lda PARAM4
+          sta (ZEROPAGE_POINTER_2),y
+          lda PARAM5
+          sta (ZEROPAGE_POINTER_3),y
+          iny
+          dec PARAM3
+          beq .LineDone
+          
+          inc PARAM4
+          lda PARAM4
+          sta (ZEROPAGE_POINTER_2),y
+          lda PARAM5
+          sta (ZEROPAGE_POINTER_3),y
+          iny
+          dec PARAM3
+          beq .LineDone
+          
+          dec PARAM4
+          jmp .NextChar
+          
+.LineDone          
+          jmp NextLevelData
+
+
+!zone LevelLineVAlternating          
+LevelLineVAlternating
+          ;X pos
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta PARAM1 
+          
+          ;Y pos
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta PARAM2
+
+          ;height
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta PARAM3
+          
+          ;char
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta PARAM4
+          
+          ;color
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta PARAM5
+          
+          ;store target pointers to screen and color ram
+          ldx PARAM2
+          lda SCREEN_LINE_OFFSET_TABLE_LO,x
+          sta ZEROPAGE_POINTER_2
+          sta ZEROPAGE_POINTER_3
+          lda SCREEN_LINE_OFFSET_TABLE_HI,x
+          sta ZEROPAGE_POINTER_2 + 1
+          clc
+          adc #( ( SCREEN_COLOR - SCREEN_CHAR ) & 0xff00 ) >> 8
+          sta ZEROPAGE_POINTER_3 + 1
+          
+          tya
+          pha
+          
+          ldx #1
+          
+          ldy PARAM1
+.NextCharV     
+          txa
+          eor #$01
+          tax
+          
+          clc
+          adc PARAM4
+          sta (ZEROPAGE_POINTER_2),y
+          lda PARAM5
+          sta (ZEROPAGE_POINTER_3),y
+          
+          ;adjust pointer
+          lda ZEROPAGE_POINTER_2
+          clc
+          adc #40
+          sta ZEROPAGE_POINTER_2
+          sta ZEROPAGE_POINTER_3
+          lda ZEROPAGE_POINTER_2 + 1
+          adc #0
+          sta ZEROPAGE_POINTER_2 + 1
+          clc
+          adc #( ( SCREEN_COLOR - SCREEN_CHAR ) & 0xff00 ) >> 8
+          sta ZEROPAGE_POINTER_3 + 1
+          
+          dec PARAM3
+          bne .NextCharV
+          
+          jmp NextLevelData
+
+
+!zone LevelQuad          
+LevelQuad
+          ;X pos
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta PARAM1 
+          
+          ;Y pos
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta PARAM2
+
+          ;item
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta PARAM3
+          
+          ;store y for next data
+          tya
+          pha
+          
+          ldy PARAM2
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+          sta ZEROPAGE_POINTER_2
+          sta ZEROPAGE_POINTER_3
+          lda SCREEN_LINE_OFFSET_TABLE_HI,y
+          sta ZEROPAGE_POINTER_2 + 1
+          clc
+          adc #( ( SCREEN_COLOR - SCREEN_CHAR ) & 0xff00 ) >> 8
+          sta ZEROPAGE_POINTER_3 + 1
+          
+          ldy PARAM1
+          ldx PARAM3
+          
+          ;put image
+          lda BLOCK_TABLE_UL_LOCATION0,x
+          sta (ZEROPAGE_POINTER_2),y
+          lda BLOCK_TABLE_UL_COLOR_LOCATION0,x
+          sta (ZEROPAGE_POINTER_3),y
+          
+          iny
+          lda BLOCK_TABLE_UR_LOCATION0,x
+          sta (ZEROPAGE_POINTER_2),y
+          lda BLOCK_TABLE_UR_COLOR_LOCATION0,x
+          sta (ZEROPAGE_POINTER_3),y
+          
+          tya
+          clc
+          adc #39
+          tay
+          
+          lda BLOCK_TABLE_LL_LOCATION0,x
+          sta (ZEROPAGE_POINTER_2),y
+          lda BLOCK_TABLE_LL_COLOR_LOCATION0,x
+          sta (ZEROPAGE_POINTER_3),y
+          
+          iny
+          lda BLOCK_TABLE_LR_LOCATION0,x
+          sta (ZEROPAGE_POINTER_2),y
+          lda BLOCK_TABLE_LR_COLOR_LOCATION0,x
+          sta (ZEROPAGE_POINTER_3),y
+          jmp NextLevelData
+
+          
+;------------------------------------------------------------
+;wait for the raster to reach line $f8
+;this is keeping our timing stable
+;------------------------------------------------------------
 !zone WaitFrame
-          ;wait for the raster to reach line $f8
-          ;this is keeping our timing stable
-          
+WaitFrame 
           ;are we on line $F8 already? if so, wait for the next full screen
           ;prevents mistimings if called too fast
-WaitFrame 
           lda $d012
           cmp #$F8
           beq WaitFrame
@@ -4008,113 +4327,6 @@ DivideBy10
           sbc #10
           bcs .divloop
           adc #10
-          rts
-
-
-;--------------------------------------------------
-;load high scores
-;returns 1 if ok, 0 otherwise
-;--------------------------------------------------
-!zone LoadScores
-LoadScores
-          ;disable kernal messages (don't want to see load error etc.)
-          lda #$00
-          jsr KERNAL_SETMSG
-          
-          ;set logical file parameters
-          lda #15 
-          ldx DRIVE_NUMBER
-          ldy #0
-          jsr KERNAL_SETLFS
-          
-          ;set filename
-          lda #9
-          ldx #<HIGHSCORE_FILENAME
-          ldy #>HIGHSCORE_FILENAME
-          jsr KERNAL_SETNAM
-          
-          ;load to address
-          lda #$00                             ; 0 = load
-          ldx #<HIGHSCORE_SCORE
-          ldy #>HIGHSCORE_SCORE
-          jsr KERNAL_LOAD
-          bcs .LoadError                        ; Flag ob ok oder nicht steht im Carry
-          lda #1
-          rts
-
-.LoadError
-          lda #0
-          rts
-
-          
-;--------------------------------------------------
-;save high scores
-;--------------------------------------------------
-!zone SaveScores
-SaveScores
-
-          ;delete old save file first
-          lda #HIGHSCORE_DELETE_FILENAME_END - HIGHSCORE_DELETE_FILENAME
-          ldx #<HIGHSCORE_DELETE_FILENAME 
-          ldy #>HIGHSCORE_DELETE_FILENAME
-
-          jsr KERNAL_SETNAM
-          
-          lda #$0F      ; file number 15
-          ldx DRIVE_NUMBER
-          ldy #$0F      ; secondary address 15
-          jsr KERNAL_SETLFS
-
-          jsr $FFC0     ; call OPEN
-          ; if carry set, the file could not be opened
-          bcs .ErrorDelete
-
-          ldx #$0F      ; filenumber 15
-          jsr $FFC9     ; call CHKOUT (file 15 now used as output)
-
-.close
-          lda #$0F      ; filenumber 15
-          jsr $FFC3     ; call CLOSE
-
-          ldx #$00      ; filenumber 0
-          jsr $FFC9     ; call CHKOUT (reset output device)
-
-          jmp .SaveNow
-
-.ErrorDelete
-          ;Akkumulator contains BASIC error code
-
-          ;most likely errors:
-          ;A = $05 (DEVICE NOT PRESENT)
-
-          ;... error handling for open errors ...
-          lda #65
-          sta $cc00
-          jmp .close    ; even if OPEN failed, the file has to be closed
-
-.SaveNow
-          lda #9
-          ldx #<HIGHSCORE_FILENAME
-          ldy #>HIGHSCORE_FILENAME
-          jsr KERNAL_SETNAM
-          
-          lda #$00
-          ldx DRIVE_NUMBER
-          ldy #$00
-          jsr KERNAL_SETLFS
-
-          lda #<HIGHSCORE_SCORE
-          sta $C1
-          lda #>HIGHSCORE_SCORE
-          sta $C2
-
-          ldx #<HIGHSCORE_DATA_END
-          ldy #>HIGHSCORE_DATA_END
-          lda #$C1      ; start address located in $C1/$C2
-          jsr $FFD8     ; call SAVE
-          
-          ;if carry set, a save error has happened
-          ;bcs .SaveError    
           rts
 
 
@@ -4624,6 +4836,123 @@ TITLE_LOGO_SCREEN_CHAR
         !byte 0,0,0,0,0,0,0,0,160,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
         !byte 160,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 
+
+;--------------------------------------------------
+;load high scores
+;returns 1 if ok, 0 otherwise
+;--------------------------------------------------
+!zone LoadScores
+LoadScores
+          ;disable kernal messages (don't want to see load error etc.)
+          lda #$00
+          jsr KERNAL_SETMSG
+          
+          ;set logical file parameters
+          lda #15 
+          ldx DRIVE_NUMBER
+          ldy #0
+          jsr KERNAL_SETLFS
+          
+          ;set filename
+          lda #9
+          ldx #<HIGHSCORE_FILENAME
+          ldy #>HIGHSCORE_FILENAME
+          jsr KERNAL_SETNAM
+          
+          ;load to address
+          lda #$00                             ; 0 = load
+          ldx #<HIGHSCORE_SCORE
+          ldy #>HIGHSCORE_SCORE
+          jsr KERNAL_LOAD
+          bcs .LoadError                        ; Flag ob ok oder nicht steht im Carry
+          lda #1
+          rts
+
+.LoadError
+          lda #0
+          rts
+
+          
+;--------------------------------------------------
+;save high scores
+;--------------------------------------------------
+!zone SaveScores
+SaveScores
+
+          ;delete old save file first
+          lda #HIGHSCORE_DELETE_FILENAME_END - HIGHSCORE_DELETE_FILENAME
+          ldx #<HIGHSCORE_DELETE_FILENAME 
+          ldy #>HIGHSCORE_DELETE_FILENAME
+
+          jsr KERNAL_SETNAM
+          
+          lda #$0F      ; file number 15
+          ldx DRIVE_NUMBER
+          ldy #$0F      ; secondary address 15
+          jsr KERNAL_SETLFS
+
+          jsr $FFC0     ; call OPEN
+          ; if carry set, the file could not be opened
+          bcs .ErrorDelete
+
+          ldx #$0F      ; filenumber 15
+          jsr $FFC9     ; call CHKOUT (file 15 now used as output)
+
+.close
+          lda #$0F      ; filenumber 15
+          jsr $FFC3     ; call CLOSE
+
+          ldx #$00      ; filenumber 0
+          jsr $FFC9     ; call CHKOUT (reset output device)
+
+          jmp .SaveNow
+
+.ErrorDelete
+          ;Akkumulator contains BASIC error code
+
+          ;most likely errors:
+          ;A = $05 (DEVICE NOT PRESENT)
+
+          ;... error handling for open errors ...
+          lda #65
+          sta $cc00
+          jmp .close    ; even if OPEN failed, the file has to be closed
+
+.SaveNow
+          lda #9
+          ldx #<HIGHSCORE_FILENAME
+          ldy #>HIGHSCORE_FILENAME
+          jsr KERNAL_SETNAM
+          
+          lda #$00
+          ldx DRIVE_NUMBER
+          ldy #$00
+          jsr KERNAL_SETLFS
+
+          lda #<HIGHSCORE_SCORE
+          sta $C1
+          lda #>HIGHSCORE_SCORE
+          sta $C2
+
+          ldx #<HIGHSCORE_DATA_END
+          ldy #>HIGHSCORE_DATA_END
+          lda #$C1      ; start address located in $C1/$C2
+          jsr $FFD8     ; call SAVE
+          
+          ;if carry set, a save error has happened
+          ;bcs .SaveError    
+          rts
+
+
+;------------------------------------------------------------
+;tile data
+;include from editor generated file
+;------------------------------------------------------------
+
+!source "tiles.asm"
+
+
+
 ;------------------------------------------------------------
 ;screen data
 ;------------------------------------------------------------
@@ -4638,11 +4967,13 @@ LEVEL_1
           !byte LD_LINE_H,5,5,10,96,13
           !byte LD_LINE_H,12,7,8,96,13
           !byte LD_LINE_H,30,12,9,97,13
-          !byte LD_LINE_H,10,19,20,96,13
-          !byte LD_LINE_V,7,6,4,128,9
+          !byte LD_LINE_H_ALT,10,19,20,96,13
+          !byte LD_LINE_V_ALT,7,6,4,128,9
           !byte LD_LINE_H,19,8,3,96,13
           !byte LD_LINE_H,24,10,4,96,13
           !byte LD_LINE_H,20,11,4,96,13
+          !byte LD_QUAD,20,4,0
+          !byte LD_QUAD,25,6,0
           !byte LD_LINE_H,16,12,4,96,13
           !byte LD_LINE_H,12,13,4,96,13
           !byte LD_LINE_H,8,14,4,96,13
@@ -4652,6 +4983,7 @@ LEVEL_1
           !byte LD_OBJECT,31,12,TYPE_BAT_8
           !byte LD_OBJECT,10,18,TYPE_BAT_UD
           !byte LD_OBJECT,20,18,TYPE_MUMMY
+          !byte LD_AREA,2,8,7,5,96,13
           !byte LD_END
 
 LEVEL_2
@@ -4679,10 +5011,10 @@ LEVEL_3
           !byte LD_END
 
 LEVEL_BORDER_DATA
-          !byte LD_LINE_H,0,0,40,128,9
-          !byte LD_LINE_H,1,22,38,129,9
-          !byte LD_LINE_V,0,1,22,128,9
-          !byte LD_LINE_V,39,1,22,129,9
+          !byte LD_LINE_H_ALT,0,0,40,128,9
+          !byte LD_LINE_H_ALT,1,22,38,128,9
+          !byte LD_LINE_V_ALT,0,1,22,128,9
+          !byte LD_LINE_V_ALT,39,1,22,128,9
           !byte LD_END
 
         
