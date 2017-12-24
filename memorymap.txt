@@ -2,7 +2,7 @@ Supernatural memory map:
 
 During program setup, all ROMS are temporarily switched off to make place for RAM. Sprite data is then copied to $D000, character data is copied to $F000. After copying, memory setup is restored to whatever it was. The VIC chip remains to see the sprite and character data at the given locations. 
 
-VIC Memory Control ($d018) set to %00111100=$3c. Meaning 12 (%1100)*1K=$3000 from start of VIC.
+VIC Memory Control ($d018) set to %00111100=$3c. Meaning 12 (%1100)*1K=$3000 or 6 (%110)*2K=$3000 from start of VIC. 
 VIC bank control ($dd00) set to $fc=%11111100. Meaning %00=bank 3 = 3*16K = $C000-$FFFF.
 So character set data is at $C000 + $3000 = $F000
 
@@ -18,7 +18,7 @@ $0810 Start of code
 
 $C400 Screen colour backup memory
 $C800 Screen character backup memory
-$CC00 Screen character memory (sprite pointer base)
+$CC00 Screen character memory (sprite pointer base because the sprite table is located at the end of screen memory)
 $D000 Sprite data
 $D800 Screen colour memory
 

@@ -259,12 +259,13 @@ ITEM_COUNT              = 8
           lda #$18
           sta $d016
           
-          
 ;------------------------------------------------------------
 ;the title screen game loop
 ;------------------------------------------------------------
 !zone TitleScreen
 TitleScreen
+          ;wait for exact frame so we don't end up on the wrong
+          ;side of the raster
           jsr WaitFrame
           jsr InitTitleIRQ
           
@@ -341,9 +342,60 @@ TitleScreen
           cpx #( 320 - 256 )
           bne .FillColor2
           
+          ;init color fade counter          
+          lda #0
+          sta COLOR_FADE_POS
+          
 .TitleLoop
           jsr WaitFrame
 
+          ;apply color fade
+          inc COLOR_FADE_POS
+          lda COLOR_FADE_POS
+          and #( COLOR_FADE_LENGTH - 1 )
+          sta COLOR_FADE_POS
+
+          
+          lda #0
+          sta PARAM1
+
+.FadeLine        
+          lda PARAM1
+          clc
+          adc #10
+          tay
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+          sta ZEROPAGE_POINTER_1
+          lda SCREEN_LINE_OFFSET_TABLE_HI,y
+          clc
+          adc #( ( ( SCREEN_COLOR - SCREEN_CHAR ) & $ff00 ) >> 8 )
+          sta ZEROPAGE_POINTER_1 + 1
+          
+          ldy #6
+          lda COLOR_FADE_POS
+          clc
+          adc PARAM1
+          and #( COLOR_FADE_LENGTH - 1 )
+          tax
+          
+.FadeColorNextChar          
+          lda COLOR_FADE_1,x
+          sta (ZEROPAGE_POINTER_1),y
+          
+          iny
+          cpy #35
+          beq .FadeColorLineDone
+          inx
+          cpx #COLOR_FADE_LENGTH
+          bne .FadeColorNextChar
+          ldx #0
+          jmp .FadeColorNextChar
+          
+.FadeColorLineDone          
+          inc PARAM1
+          lda PARAM1
+          cmp #8
+          bne .FadeLine
 
           lda #$10
           bit $dc00
@@ -352,6 +404,7 @@ TitleScreen
           ;button pushed
           lda BUTTON_RELEASED
           bne .Restart
+          
           jmp .TitleLoop
           
 
@@ -4330,319 +4383,6 @@ DivideBy10
           rts
 
 
-;------------------------------------------------------------
-;game variables
-;------------------------------------------------------------
-
-LEVEL_NR  
-          !byte 0
-BUTTON_PRESSED
-          !byte 0
-BUTTON_RELEASED
-          !byte 0
-          
-PLAYER_JUMP_POS
-          !byte 0
-PLAYER_JUMP_TABLE
-          !byte 8,8,7,5,3,2,1,1,1,0
-PLAYER_FALL_POS
-          !byte 0
-FALL_SPEED_TABLE
-          !byte 1,1,2,2,3,3,3,3,3,3
-PLAYER_SHOT_PAUSE
-          !byte 0
-PLAYER_LIVES
-          !byte 0
-PLAYER_SHELLS
-          !byte 2
-PLAYER_SHELLS_MAX
-          !byte 2
-PLAYER_STAND_STILL_TIME
-          !byte 0
-          
-SPRITE_HP
-          !byte 0,0,0,0,0,0,0,0
-          
-SPRITE_POS_X
-          !byte 0,0,0,0,0,0,0,0
-SPRITE_POS_X_EXTEND
-          !byte 0
-SPRITE_CHAR_POS_X
-          !byte 0,0,0,0,0,0,0,0
-SPRITE_CHAR_POS_X_DELTA
-          !byte 0,0,0,0,0,0,0,0
-SPRITE_CHAR_POS_Y
-          !byte 0,0,0,0,0,0,0,0
-SPRITE_CHAR_POS_Y_DELTA
-          !byte 0,0,0,0,0,0,0,0
-SPRITE_POS_Y
-          !byte 0,0,0,0,0,0,0,0
-SPRITE_ACTIVE
-          !byte 0,0,0,0,0,0,0,0
-SPRITE_DIRECTION
-          !byte 0,0,0,0,0,0,0,0
-SPRITE_FALLING
-          !byte 0,0,0,0,0,0,0,0
-SPRITE_ANIM_POS
-          !byte 0,0,0,0,0,0,0,0
-SPRITE_ANIM_DELAY
-          !byte 0,0,0,0,0,0,0,0
-SPRITE_MOVE_POS
-          !byte 0,0,0,0,0,0,0,0
-SPRITE_STATE
-          !byte 0,0,0,0,0,0,0,0
-
-          
-ITEM_ACTIVE
-          !fill ITEM_COUNT,ITEM_NONE
-ITEM_POS_X
-          !fill ITEM_COUNT,0
-ITEM_POS_Y
-          !fill ITEM_COUNT,0
-ITEM_TIME
-          !fill ITEM_COUNT,0
-          
-ENEMY_BEHAVIOUR_TABLE_LO          
-          !byte <PlayerControl
-          !byte <BehaviourBatLR
-          !byte <BehaviourBatUD
-          !byte <BehaviourBat8
-          !byte <BehaviourMummy
-          !byte <BehaviourZombie
-          !byte <BehaviourBatVanishing
-          
-ENEMY_BEHAVIOUR_TABLE_HI
-          !byte >PlayerControl
-          !byte >BehaviourBatLR
-          !byte >BehaviourBatUD
-          !byte >BehaviourBat8
-          !byte >BehaviourMummy
-          !byte >BehaviourZombie
-          !byte >BehaviourBatVanishing
-          
-;behaviour for an enemy being hit          
-ENEMY_HIT_BEHAVIOUR_TABLE_LO          
-          !byte <HitBehaviourHurt     ;bat LR
-          !byte <HitBehaviourHurt     ;bat UD
-          !byte <HitBehaviourHurt     ;bat8
-          !byte <HitBehaviourHurt     ;mummy
-          !byte <HitBehaviourCrumble  ;zombie
-          !byte <HitBehaviourVanish   ;bat vanish
-          
-ENEMY_HIT_BEHAVIOUR_TABLE_HI
-          !byte >HitBehaviourHurt     ;bat LR
-          !byte >HitBehaviourHurt     ;bat UD
-          !byte >HitBehaviourHurt     ;bat8
-          !byte >HitBehaviourHurt     ;mummy
-          !byte >HitBehaviourCrumble  ;zombie
-          !byte >HitBehaviourVanish   ;bat vanish
-          
-IS_TYPE_ENEMY
-          !byte 0     ;dummy entry for inactive object
-          !byte 0     ;player
-          !byte 1     ;bat_lr
-          !byte 1     ;bat_ud
-          !byte 1     ;bat 8
-          !byte 1     ;mummy
-          !byte 1     ;zombie
-          !byte 1     ;bat vanish
-          
-TYPE_START_SPRITE
-          !byte 0     ;dummy entry for inactive object
-          !byte SPRITE_PLAYER_STAND_R
-          !byte SPRITE_BAT_1
-          !byte SPRITE_BAT_1
-          !byte SPRITE_BAT_2
-          !byte SPRITE_MUMMY_R_1
-          !byte SPRITE_ZOMBIE_WALK_R_1
-          !byte SPRITE_BAT_1
-          
-TYPE_START_COLOR
-          !byte 0
-          !byte 10
-          !byte 3
-          !byte 3
-          !byte 8
-          !byte 1
-          !byte 5
-          !byte 3
-          
-TYPE_START_MULTICOLOR
-          !byte 0
-          !byte 1
-          !byte 0
-          !byte 0
-          !byte 0
-          !byte 0
-          !byte 1
-          !byte 0
-          
-TYPE_START_HP
-          !byte 0
-          !byte 1
-          !byte 5
-          !byte 5
-          !byte 5
-          !byte 10
-          !byte 8
-          !byte 3
-          
-BAT_ANIMATION
-          !byte SPRITE_BAT_1
-          !byte SPRITE_BAT_2
-          !byte SPRITE_BAT_3
-          !byte SPRITE_BAT_2
-          
-PATH_8_DX
-          !byte $86
-          !byte $86
-          !byte $85
-          !byte $84
-          !byte $83
-          !byte $82
-          !byte $81
-          !byte 0
-          
-          !byte 0
-          !byte 1
-          !byte 2
-          !byte 3
-          !byte 4
-          !byte 5
-          !byte 6
-          !byte 6
-
-          !byte 6
-          !byte 6
-          !byte 5
-          !byte 4
-          !byte 3
-          !byte 2
-          !byte 1
-          !byte 0
-          
-          !byte 0
-          !byte $81
-          !byte $82
-          !byte $83
-          !byte $84
-          !byte $85
-          !byte $86
-          !byte $86
-          
-PATH_8_DY
-          !byte 0
-          !byte 1
-          !byte 2
-          !byte 3
-          !byte 4
-          !byte 5
-          !byte 6
-          !byte 6
-
-          !byte 6
-          !byte 6
-          !byte 5
-          !byte 4
-          !byte 3
-          !byte 2
-          !byte 1
-          !byte 0
-          
-          !byte 0
-          !byte $81
-          !byte $82
-          !byte $83
-          !byte $84
-          !byte $85
-          !byte $86
-          !byte $86
-          
-          !byte $86
-          !byte $86
-          !byte $85
-          !byte $84
-          !byte $83
-          !byte $82
-          !byte $81
-          !byte 0
-          
-NUMBER_ENEMIES_ALIVE
-          !byte 0
-LEVEL_DONE_DELAY
-          !byte 0
-DELAYED_GENERIC_COUNTER
-          !byte 0
-          
-ITEM_CHAR_UL
-          !byte 4,8
-ITEM_COLOR_UL
-          !byte 7,2
-ITEM_CHAR_UR
-          !byte 5,9
-ITEM_COLOR_UR
-          !byte 4,2
-ITEM_CHAR_LL
-          !byte 6,10
-ITEM_COLOR_LL
-          !byte 7,2
-ITEM_CHAR_LR
-          !byte 7,11
-ITEM_COLOR_LR
-          !byte 4,2
-          
-BIT_TABLE
-          !byte 1,2,4,8,16,32,64,128
-XBIT_TABLE
-          !byte 0,128
-          
-TEXT_PRESS_FIRE          
-          !text "PRESS FIRE TO RESTART*"
-TEXT_DISPLAY
-          !text " SCORE: 00000000   ",224,224,"         LEVEL: 00                    ",225,225,"         LIVES: 03 *"
-TEXT_TITLE
-          ;          SSSSSSS    UUUUUU     PPPPPPP    EEEEEEE    RRRRRRR    NNNNNNN    AAAAAAA    TTTTTTTTTTT    UUUUUUU    RRRRRRR    AAAAAAA    LLLLLLL
-          !text "  ",229,228,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32,226, 32,32, 32, 32,32, 32, 32,32, 32, 32,32,226, 32,"  "
-          !text "  ",226, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32,227,229,228,32, 32, 32,32, 32, 32,32, 32, 32,32,226, 32,"  "
-          !text "  ",227,226,32,226,226,32,229,226,32,229,226,32,229,228,32,229,226,32,229,226,32, 32,226, 32,32,226,226,32,229,228,32,229,226,32,226, 32,"  "
-          !text "  ", 32,226,32,226,226,32,226,226,32,229,228,32,226, 32,32,226,226,32,229,226,32, 32,226, 32,32,226,226,32,226, 32,32,229,226,32,226, 32,"  "
-          !text "  ",227,228,32,227,228,32,229,228,32,227,228,32,228, 32,32,228,228,32,228,228,32, 32,228, 32,32,227,228,32,228, 32,32,228,228,32,227,228,"  "
-          !text "        ",226,"*"
-          
-TEXT_FIRE_TO_START
-          !text "PRESS FIRE TO PLAY*"
-          
-DRIVE_NUMBER
-          !byte 8
-          
-HIGHSCORE_FILENAME
-          !text "HIGHSCORE"
-          
-HIGHSCORE_DELETE_FILENAME          
-          !text "S0:HIGHSCORE"
-HIGHSCORE_DELETE_FILENAME_END
-          
-          
-HIGHSCORE_SCORE
-          !text "00050000-"
-          !text "00040000-"
-          !text "00030000-"
-          !text "00020000-"
-          !text "00010000-"
-          !text "00001000-"
-          !text "00000300-"
-          !text "00000100*"
-          
-HIGHSCORE_NAME
-          !text "SUPERNATURAL-"
-          !text "SUPERNATURAL-"
-          !text "SUPERNATURAL-"
-          !text "SUPERNATURAL-"
-          !text "SUPERNATURAL-"
-          !text "SUPERNATURAL-"
-          !text "SUPERNATURAL-"
-          !text "SUPERNATURAL*"
-HIGHSCORE_DATA_END          
           
 ;place the data at a valid bitmap position, this avoids copying the data        
 * = $2000        
@@ -4942,6 +4682,331 @@ SaveScores
           ;if carry set, a save error has happened
           ;bcs .SaveError    
           rts
+
+
+;------------------------------------------------------------
+;game variables
+;------------------------------------------------------------
+
+LEVEL_NR  
+          !byte 0
+BUTTON_PRESSED
+          !byte 0
+BUTTON_RELEASED
+          !byte 0
+          
+PLAYER_JUMP_POS
+          !byte 0
+PLAYER_JUMP_TABLE
+          !byte 8,8,7,5,3,2,1,1,1,0
+PLAYER_FALL_POS
+          !byte 0
+FALL_SPEED_TABLE
+          !byte 1,1,2,2,3,3,3,3,3,3
+PLAYER_SHOT_PAUSE
+          !byte 0
+PLAYER_LIVES
+          !byte 0
+PLAYER_SHELLS
+          !byte 2
+PLAYER_SHELLS_MAX
+          !byte 2
+PLAYER_STAND_STILL_TIME
+          !byte 0
+          
+SPRITE_HP
+          !byte 0,0,0,0,0,0,0,0
+          
+SPRITE_POS_X
+          !byte 0,0,0,0,0,0,0,0
+SPRITE_POS_X_EXTEND
+          !byte 0
+SPRITE_CHAR_POS_X
+          !byte 0,0,0,0,0,0,0,0
+SPRITE_CHAR_POS_X_DELTA
+          !byte 0,0,0,0,0,0,0,0
+SPRITE_CHAR_POS_Y
+          !byte 0,0,0,0,0,0,0,0
+SPRITE_CHAR_POS_Y_DELTA
+          !byte 0,0,0,0,0,0,0,0
+SPRITE_POS_Y
+          !byte 0,0,0,0,0,0,0,0
+SPRITE_ACTIVE
+          !byte 0,0,0,0,0,0,0,0
+SPRITE_DIRECTION
+          !byte 0,0,0,0,0,0,0,0
+SPRITE_FALLING
+          !byte 0,0,0,0,0,0,0,0
+SPRITE_ANIM_POS
+          !byte 0,0,0,0,0,0,0,0
+SPRITE_ANIM_DELAY
+          !byte 0,0,0,0,0,0,0,0
+SPRITE_MOVE_POS
+          !byte 0,0,0,0,0,0,0,0
+SPRITE_STATE
+          !byte 0,0,0,0,0,0,0,0
+
+          
+ITEM_ACTIVE
+          !fill ITEM_COUNT,ITEM_NONE
+ITEM_POS_X
+          !fill ITEM_COUNT,0
+ITEM_POS_Y
+          !fill ITEM_COUNT,0
+ITEM_TIME
+          !fill ITEM_COUNT,0
+          
+ENEMY_BEHAVIOUR_TABLE_LO          
+          !byte <PlayerControl
+          !byte <BehaviourBatLR
+          !byte <BehaviourBatUD
+          !byte <BehaviourBat8
+          !byte <BehaviourMummy
+          !byte <BehaviourZombie
+          !byte <BehaviourBatVanishing
+          
+ENEMY_BEHAVIOUR_TABLE_HI
+          !byte >PlayerControl
+          !byte >BehaviourBatLR
+          !byte >BehaviourBatUD
+          !byte >BehaviourBat8
+          !byte >BehaviourMummy
+          !byte >BehaviourZombie
+          !byte >BehaviourBatVanishing
+          
+;behaviour for an enemy being hit          
+ENEMY_HIT_BEHAVIOUR_TABLE_LO          
+          !byte <HitBehaviourHurt     ;bat LR
+          !byte <HitBehaviourHurt     ;bat UD
+          !byte <HitBehaviourHurt     ;bat8
+          !byte <HitBehaviourHurt     ;mummy
+          !byte <HitBehaviourCrumble  ;zombie
+          !byte <HitBehaviourVanish   ;bat vanish
+          
+ENEMY_HIT_BEHAVIOUR_TABLE_HI
+          !byte >HitBehaviourHurt     ;bat LR
+          !byte >HitBehaviourHurt     ;bat UD
+          !byte >HitBehaviourHurt     ;bat8
+          !byte >HitBehaviourHurt     ;mummy
+          !byte >HitBehaviourCrumble  ;zombie
+          !byte >HitBehaviourVanish   ;bat vanish
+          
+IS_TYPE_ENEMY
+          !byte 0     ;dummy entry for inactive object
+          !byte 0     ;player
+          !byte 1     ;bat_lr
+          !byte 1     ;bat_ud
+          !byte 1     ;bat 8
+          !byte 1     ;mummy
+          !byte 1     ;zombie
+          !byte 1     ;bat vanish
+          
+TYPE_START_SPRITE
+          !byte 0     ;dummy entry for inactive object
+          !byte SPRITE_PLAYER_STAND_R
+          !byte SPRITE_BAT_1
+          !byte SPRITE_BAT_1
+          !byte SPRITE_BAT_2
+          !byte SPRITE_MUMMY_R_1
+          !byte SPRITE_ZOMBIE_WALK_R_1
+          !byte SPRITE_BAT_1
+          
+TYPE_START_COLOR
+          !byte 0
+          !byte 10
+          !byte 3
+          !byte 3
+          !byte 8
+          !byte 1
+          !byte 5
+          !byte 3
+          
+TYPE_START_MULTICOLOR
+          !byte 0
+          !byte 1
+          !byte 0
+          !byte 0
+          !byte 0
+          !byte 0
+          !byte 1
+          !byte 0
+          
+TYPE_START_HP
+          !byte 0
+          !byte 1
+          !byte 5
+          !byte 5
+          !byte 5
+          !byte 10
+          !byte 8
+          !byte 3
+          
+BAT_ANIMATION
+          !byte SPRITE_BAT_1
+          !byte SPRITE_BAT_2
+          !byte SPRITE_BAT_3
+          !byte SPRITE_BAT_2
+          
+PATH_8_DX
+          !byte $86
+          !byte $86
+          !byte $85
+          !byte $84
+          !byte $83
+          !byte $82
+          !byte $81
+          !byte 0
+          
+          !byte 0
+          !byte 1
+          !byte 2
+          !byte 3
+          !byte 4
+          !byte 5
+          !byte 6
+          !byte 6
+
+          !byte 6
+          !byte 6
+          !byte 5
+          !byte 4
+          !byte 3
+          !byte 2
+          !byte 1
+          !byte 0
+          
+          !byte 0
+          !byte $81
+          !byte $82
+          !byte $83
+          !byte $84
+          !byte $85
+          !byte $86
+          !byte $86
+          
+PATH_8_DY
+          !byte 0
+          !byte 1
+          !byte 2
+          !byte 3
+          !byte 4
+          !byte 5
+          !byte 6
+          !byte 6
+
+          !byte 6
+          !byte 6
+          !byte 5
+          !byte 4
+          !byte 3
+          !byte 2
+          !byte 1
+          !byte 0
+          
+          !byte 0
+          !byte $81
+          !byte $82
+          !byte $83
+          !byte $84
+          !byte $85
+          !byte $86
+          !byte $86
+          
+          !byte $86
+          !byte $86
+          !byte $85
+          !byte $84
+          !byte $83
+          !byte $82
+          !byte $81
+          !byte 0
+          
+NUMBER_ENEMIES_ALIVE
+          !byte 0
+LEVEL_DONE_DELAY
+          !byte 0
+DELAYED_GENERIC_COUNTER
+          !byte 0
+          
+ITEM_CHAR_UL
+          !byte 4,8
+ITEM_COLOR_UL
+          !byte 7,2
+ITEM_CHAR_UR
+          !byte 5,9
+ITEM_COLOR_UR
+          !byte 4,2
+ITEM_CHAR_LL
+          !byte 6,10
+ITEM_COLOR_LL
+          !byte 7,2
+ITEM_CHAR_LR
+          !byte 7,11
+ITEM_COLOR_LR
+          !byte 4,2
+          
+BIT_TABLE
+          !byte 1,2,4,8,16,32,64,128
+XBIT_TABLE
+          !byte 0,128
+          
+TEXT_PRESS_FIRE          
+          !text "PRESS FIRE TO RESTART*"
+TEXT_DISPLAY
+          !text " SCORE: 00000000   ",224,224,"         LEVEL: 00                    ",225,225,"         LIVES: 03 *"
+TEXT_TITLE
+          ;          SSSSSSS    UUUUUU     PPPPPPP    EEEEEEE    RRRRRRR    NNNNNNN    AAAAAAA    TTTTTTTTTTT    UUUUUUU    RRRRRRR    AAAAAAA    LLLLLLL
+          !text "  ",229,228,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32,226, 32,32, 32, 32,32, 32, 32,32, 32, 32,32,226, 32,"  "
+          !text "  ",226, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32,227,229,228,32, 32, 32,32, 32, 32,32, 32, 32,32,226, 32,"  "
+          !text "  ",227,226,32,226,226,32,229,226,32,229,226,32,229,228,32,229,226,32,229,226,32, 32,226, 32,32,226,226,32,229,228,32,229,226,32,226, 32,"  "
+          !text "  ", 32,226,32,226,226,32,226,226,32,229,228,32,226, 32,32,226,226,32,229,226,32, 32,226, 32,32,226,226,32,226, 32,32,229,226,32,226, 32,"  "
+          !text "  ",227,228,32,227,228,32,229,228,32,227,228,32,228, 32,32,228,228,32,228,228,32, 32,228, 32,32,227,228,32,228, 32,32,228,228,32,227,228,"  "
+          !text "        ",226,"*"
+          
+TEXT_FIRE_TO_START
+          !text "PRESS FIRE TO PLAY*"
+          
+COLOR_FADE_POS
+          !byte 0
+          
+DRIVE_NUMBER
+          !byte 8
+          
+HIGHSCORE_FILENAME
+          !text "HIGHSCORE"
+          
+HIGHSCORE_DELETE_FILENAME          
+          !text "S0:HIGHSCORE"
+HIGHSCORE_DELETE_FILENAME_END
+          
+          
+HIGHSCORE_SCORE
+          !text "00050000-"
+          !text "00040000-"
+          !text "00030000-"
+          !text "00020000-"
+          !text "00010000-"
+          !text "00001000-"
+          !text "00000300-"
+          !text "00000100*"
+          
+HIGHSCORE_NAME
+          !text "SUPERNATURAL-"
+          !text "SUPERNATURAL-"
+          !text "SUPERNATURAL-"
+          !text "SUPERNATURAL-"
+          !text "SUPERNATURAL-"
+          !text "SUPERNATURAL-"
+          !text "SUPERNATURAL-"
+          !text "SUPERNATURAL*"
+HIGHSCORE_DATA_END          
+
+COLOR_FADE_LENGTH = 16
+
+COLOR_FADE_1
+          !byte 0,0,6,6,3,3,1,1,1,1,1,1,3,3,6,6
+
+
 
 
 ;------------------------------------------------------------
