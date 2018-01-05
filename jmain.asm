@@ -355,7 +355,7 @@ TitleScreen
           and #( COLOR_FADE_LENGTH - 1 )
           sta COLOR_FADE_POS
 
-          
+          ; set line number to 0
           lda #0
           sta PARAM1
 
