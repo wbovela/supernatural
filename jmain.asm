@@ -231,6 +231,7 @@ ITEM_COUNT              = 8
           
           ;background black
           lda #0
+          sta VIC_BORDER_COLOR
           sta VIC_BACKGROUND_COLOR
           
           ;set charset multi colors
@@ -264,11 +265,9 @@ ITEM_COUNT              = 8
 ;------------------------------------------------------------
 !zone TitleScreen
 TitleScreen
-          ;wait for exact frame so we don't end up on the wrong
-          ;side of the raster
-          jsr WaitFrame
           jsr InitTitleIRQ
           
+TitleScreenWithoutIRQ          
           ldx #0
           stx BUTTON_PRESSED
           stx BUTTON_RELEASED
@@ -278,17 +277,6 @@ TitleScreen
           lda #32
           ldy #1
           jsr ClearScreen
-          
-          ;display title logo
-          lda #<TEXT_TITLE
-          sta ZEROPAGE_POINTER_1
-          lda #>TEXT_TITLE
-          sta ZEROPAGE_POINTER_1 + 1
-          lda #0
-          sta PARAM1
-          lda #1
-          sta PARAM2
-          jsr DisplayText
           
           ;display start text
           lda #<TEXT_FIRE_TO_START
@@ -355,7 +343,7 @@ TitleScreen
           and #( COLOR_FADE_LENGTH - 1 )
           sta COLOR_FADE_POS
 
-          ; set line number to 0
+          
           lda #0
           sta PARAM1
 
@@ -462,8 +450,8 @@ TitleScreen
 GameLoop  
           jsr WaitFrame
           
-          lda #1
-          sta VIC_BORDER_COLOR
+          ;lda #1
+          ;sta VIC_BORDER_COLOR
 
           jsr GameFlowControl
           jsr DeadControl
@@ -471,8 +459,8 @@ GameLoop
           jsr ObjectControl
           jsr CheckCollisions
 
-          lda #0
-          sta VIC_BORDER_COLOR
+          ;lda #0
+          ;sta VIC_BORDER_COLOR
           
           jmp GameLoop          
           
@@ -482,7 +470,10 @@ GameLoop
 ;-----------------------------------
 !zone InitTitleIRQ
 InitTitleIRQ
-            
+         
+          ;wait for exact frame so we don't end up on the wrong
+          ;side of the raster
+          jsr WaitFrame
           sei
 
           lda #$37 ; make sure that IO regs at $dxxx
@@ -563,7 +554,7 @@ IrqSetBitmapMode
           sta $0315
 
           ;nr of rasterline we want our irq occur at
-          lda #$71 
+          lda #$70 
           sta $d012
 
           ;bitmap modus an
@@ -593,7 +584,7 @@ IrqSetTextMode
           lda $d019
           sta $d019
 
-          ;install scroller irq
+          ;install next state
           lda #<IrqSetBitmapMode
           sta $0314
           lda #>IrqSetBitmapMode
@@ -662,7 +653,6 @@ GameFlowControl
           lda LEVEL_DONE_DELAY
           cmp #20
           beq .GoToNextLevel
-          inc VIC_BORDER_COLOR
           
 .NotDoneYet        
 
@@ -716,6 +706,8 @@ StartLevel
 ;------------------------------------------------------------
 !zone CheckForHighscore
 CheckForHighscore
+
+
           lda #0
           sta PARAM1
           ldy #0
@@ -837,8 +829,7 @@ CheckForHighscore
 
 
 .SetNewName
-          
-          ;calc y for new name offset
+          ;calc y for new name offset inside name data
           ldy PARAM1
           
           lda #0
@@ -864,17 +855,79 @@ CheckForHighscore
           inx
           cpx #HIGHSCORE_NAME_SIZE
           bne .ClearNextChar
+
+          ;name entry starts here
+          
+          ;calc cursor pos
+          
+          ;y pos on screen
+          lda PARAM1
+          clc
+          adc #10
+          tay
+          
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+          sta ZEROPAGE_POINTER_4
+          lda SCREEN_LINE_OFFSET_TABLE_HI,y
+          sta ZEROPAGE_POINTER_4 + 1
+          
+          ;prepare display
+          lda #0
+          sta VIC_SPRITE_ENABLE
+          
+          ;clear screen
+          lda #32
+          ldy #0
+          jsr ClearScreen
+
+          ;display "Enter your name"
+          lda #<TEXT_ENTER_NAME
+          sta ZEROPAGE_POINTER_1
+          lda #>TEXT_ENTER_NAME
+          sta ZEROPAGE_POINTER_1 + 1
+          lda #12
+          sta PARAM1
+          lda #23
+          sta PARAM2
+          jsr DisplayText
+          
+          ;display scores
+          lda #25
+          sta PARAM1
+          lda #10
+          sta PARAM2
+
+          lda #<HIGHSCORE_SCORE
+          sta ZEROPAGE_POINTER_1
+          lda #>HIGHSCORE_SCORE
+          sta ZEROPAGE_POINTER_1 + 1
+          jsr DisplayText
+          
+          
+          jsr InitTitleIRQ
           
           ldy PARAM3
           
-          ;enter name
           ldx #0
           stx PARAM3
-          
           jmp .ShowChar
           
 .GetNextChar
           sty PARAM4
+          
+          ;blink cursor
+          jsr WaitFrame
+          
+          lda PARAM3
+          clc
+          adc #6
+          tay
+          lda (ZEROPAGE_POINTER_4),y
+          eor #123 ;32 + 91
+          sta (ZEROPAGE_POINTER_4),y
+          
+          ;restore Y
+          ldy PARAM4
           
           ;use ROM routines, read char
           jsr KERNAL_GETIN
@@ -956,7 +1009,7 @@ CheckForHighscore
 
 .FilledUp
           jsr SaveScores
-          jmp TitleScreen
+          jmp TitleScreenWithoutIRQ
           
 text     
           !byte 0,0,0,0,0,0,0,0,0,0,0,0,0
@@ -4954,17 +5007,11 @@ TEXT_PRESS_FIRE
           !text "PRESS FIRE TO RESTART*"
 TEXT_DISPLAY
           !text " SCORE: 00000000   ",224,224,"         LEVEL: 00                    ",225,225,"         LIVES: 03 *"
-TEXT_TITLE
-          ;          SSSSSSS    UUUUUU     PPPPPPP    EEEEEEE    RRRRRRR    NNNNNNN    AAAAAAA    TTTTTTTTTTT    UUUUUUU    RRRRRRR    AAAAAAA    LLLLLLL
-          !text "  ",229,228,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32,226, 32,32, 32, 32,32, 32, 32,32, 32, 32,32,226, 32,"  "
-          !text "  ",226, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32, 32, 32,32,227,229,228,32, 32, 32,32, 32, 32,32, 32, 32,32,226, 32,"  "
-          !text "  ",227,226,32,226,226,32,229,226,32,229,226,32,229,228,32,229,226,32,229,226,32, 32,226, 32,32,226,226,32,229,228,32,229,226,32,226, 32,"  "
-          !text "  ", 32,226,32,226,226,32,226,226,32,229,228,32,226, 32,32,226,226,32,229,226,32, 32,226, 32,32,226,226,32,226, 32,32,229,226,32,226, 32,"  "
-          !text "  ",227,228,32,227,228,32,229,228,32,227,228,32,228, 32,32,228,228,32,228,228,32, 32,228, 32,32,227,228,32,228, 32,32,228,228,32,227,228,"  "
-          !text "        ",226,"*"
           
 TEXT_FIRE_TO_START
           !text "PRESS FIRE TO PLAY*"
+TEXT_ENTER_NAME
+          !text "ENTER YOUR NAME*"
           
 COLOR_FADE_POS
           !byte 0
