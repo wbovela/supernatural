@@ -8,6 +8,12 @@ KERNAL_SETLFS           = $ffba
 KERNAL_SETNAM           = $ffbd
 KERNAL_LOAD             = $ffd5
 
+VIC_SPRITE_X_POS        = $d000
+VIC_SPRITE_Y_POS        = $d001
+VIC_SPRITE_X_EXTEND     = $d010
+VIC_SPRITE_ENABLE       = $d015
+VIC_SPRITE_MULTICOLOR   = $d01c
+
 ;placeholder for various temp parameters
 PARAM1                  = $03
 PARAM2                  = $04
@@ -413,11 +419,18 @@ TitleScreenWithoutIRQ
           ;setup level
           jsr StartLevel
           
-          lda #0
+          lda #3
           sta LEVEL_NR
           jsr BuildScreen
           
           jsr CopyLevelToBackBuffer
+          
+          lda #40
+          sta LEVEL_START_DELAY
+          lda #0
+          sta PLAYER_JUMP_POS
+          
+          jsr DisplayGetReady
           
           lda #<TEXT_DISPLAY
           sta ZEROPAGE_POINTER_1
@@ -452,9 +465,18 @@ GameLoop
           
           ;lda #1
           ;sta VIC_BORDER_COLOR
+          
+          lda LEVEL_START_DELAY
+          beq .GameIsOn
+          dec LEVEL_START_DELAY
+          beq .RemoveGetReady
+          jmp GameLoop
 
+.GameIsOn
           jsr GameFlowControl
           jsr DeadControl
+          lda LEVEL_START_DELAY
+          bne GameLoop
 
           jsr ObjectControl
           jsr CheckCollisions
@@ -464,6 +486,53 @@ GameLoop
           
           jmp GameLoop          
           
+.RemoveGetReady          
+          ;remove restart message
+          ldy #11
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+          sta ZEROPAGE_POINTER_1
+          sta ZEROPAGE_POINTER_2
+          sta ZEROPAGE_POINTER_3
+          sta ZEROPAGE_POINTER_4
+          lda SCREEN_LINE_OFFSET_TABLE_HI,y
+          sta ZEROPAGE_POINTER_1 + 1
+          clc
+          adc #( ( SCREEN_COLOR - SCREEN_CHAR ) & 0xff00 ) >> 8
+          sta ZEROPAGE_POINTER_2 + 1
+          sec
+          sbc #( ( SCREEN_COLOR - SCREEN_BACK_CHAR ) & 0xff00 ) >> 8
+          sta ZEROPAGE_POINTER_3 + 1
+          sec
+          sbc #( ( SCREEN_BACK_CHAR - SCREEN_BACK_COLOR ) & 0xff00 ) >> 8
+          sta ZEROPAGE_POINTER_4 + 1
+          
+          ldy #14
+          
+.ReplaceChar          
+          lda (ZEROPAGE_POINTER_4),y
+          sta (ZEROPAGE_POINTER_2),y
+          lda (ZEROPAGE_POINTER_3),y
+          sta (ZEROPAGE_POINTER_1),y
+          
+          iny
+          cpy #10
+          bne .ReplaceChar
+          
+          tya
+          clc
+          adc #30
+          tay
+
+.ReplaceChar2ndRow          
+          lda (ZEROPAGE_POINTER_4),y
+          sta (ZEROPAGE_POINTER_2),y
+          lda (ZEROPAGE_POINTER_3),y
+          sta (ZEROPAGE_POINTER_1),y
+          
+          iny
+          cpy #10
+          bne .ReplaceChar2ndRow
+          jmp GameLoop
 
 ;-----------------------------------
 ;init IRQ
@@ -669,6 +738,7 @@ GameFlowControl
           jsr BuildScreen
           
           jsr CopyLevelToBackBuffer
+          jsr DisplayGetReady
           rts
 
 
@@ -706,7 +776,6 @@ StartLevel
 ;------------------------------------------------------------
 !zone CheckForHighscore
 CheckForHighscore
-
 
           lda #0
           sta PARAM1
@@ -923,7 +992,7 @@ CheckForHighscore
           adc #6
           tay
           lda (ZEROPAGE_POINTER_4),y
-          eor #123 ;32 + 91
+          eor #123
           sta (ZEROPAGE_POINTER_4),y
           
           ;restore Y
@@ -1042,7 +1111,7 @@ DeadControl
           rts
           
 .Restart
-          ;if last live return to title
+          ;if last life return to title
           lda PLAYER_LIVES
           bne .RestartLevel
           jmp CheckForHighscore
@@ -1082,38 +1151,83 @@ DeadControl
           cpy #32
           bne .ReplaceChar
           
-
-          ;TODO - respawn at correct position!
-          lda #5
-          sta PARAM1 
+          ;remove all items
+          ldy #0
           
-          lda #4
+.RemoveItem          
+          lda ITEM_ACTIVE,y
+          cmp #ITEM_NONE
+          beq .RemoveNextItem
+          
+          lda #ITEM_NONE
+          sta ITEM_ACTIVE,y
+          jsr RemoveItemImage
+          
+.RemoveNextItem
+          iny
+          cpy #ITEM_COUNT
+          bne .RemoveItem
+          
+          
+          ;refill shells
+          ldx #0
+.RefillShellImage          
+          lda #2
+          sta SCREEN_COLOR + 23 * 40 + 19,x
+          lda #7
+          sta SCREEN_COLOR + 24 * 40 + 19,x
+          
+          inx
+          cpx PLAYER_SHELLS_MAX
+          bne .RefillShellImage
+
+          lda PLAYER_SHELLS_MAX
+          sta PLAYER_SHELLS
+          
+
+          ;respawn at correct position
+          lda PLAYER_START_POS_X
+          sta PARAM1 
+          lda PLAYER_START_POS_Y
           sta PARAM2
 
           ;type
           lda #TYPE_PLAYER
           sta PARAM3
-
-          ldx #0
-          lda PARAM3
-          sta SPRITE_ACTIVE,x
+          sta SPRITE_ACTIVE
           
           ;PARAM1 and PARAM2 hold x,y already
+          ldx #0
           jsr CalcSpritePosFromCharPos
           
           ;enable sprite
-          lda BIT_TABLE,x
+          lda BIT_TABLE
           ora VIC_SPRITE_ENABLE
           sta VIC_SPRITE_ENABLE
           
           ;initialise enemy values
           lda #SPRITE_PLAYER
-          sta SPRITE_POINTER_BASE,x
+          sta SPRITE_POINTER_BASE
           
           ;look right per default
           lda #0
-          sta SPRITE_DIRECTION,x
+          sta SPRITE_DIRECTION
           
+          lda #40
+          sta LEVEL_START_DELAY
+          lda #0
+          sta PLAYER_JUMP_POS
+          sta SPRITE_FALLING
+          
+          lda #<TEXT_GET_READY
+          sta ZEROPAGE_POINTER_1
+          lda #>TEXT_GET_READY
+          sta ZEROPAGE_POINTER_1 + 1
+          lda #15
+          sta PARAM1
+          lda #11
+          sta PARAM2
+          jsr DisplayText
           rts
           
 
@@ -1166,7 +1280,7 @@ CheckCollisions
           
           dec PLAYER_LIVES
           jsr DisplayLiveNumber
-
+          
           ldx #0
           stx BUTTON_PRESSED
           stx BUTTON_RELEASED
@@ -1929,11 +2043,21 @@ SpawnItem
           
           lda SPRITE_CHAR_POS_X,x
           sta ITEM_POS_X,y
+          ;keep item in bounds
+          cmp #37
+          bmi .XIsOk
+          lda #37
+          sta ITEM_POS_X,y
+.XIsOk          
           lda SPRITE_CHAR_POS_Y,x
           sec
           sbc #1
           sta ITEM_POS_Y,y
-
+          cmp #21
+          bne .YIsOk
+          lda #20
+          sta ITEM_POS_X,y
+.YIsOk
           stx PARAM5
           tya
           tax
@@ -3289,7 +3413,7 @@ MoveSpriteUp
           tay
           
           lda SPRITE_POS_Y,x
-          sta 53249,y
+          sta VIC_SPRITE_Y_POS,y
           rts  
 
 ;------------------------------------------------------------
@@ -3305,7 +3429,7 @@ MoveSpriteDown
           tay
           
           lda SPRITE_POS_Y,x
-          sta 53249,y
+          sta VIC_SPRITE_Y_POS,y
           rts  
 
 
@@ -3401,7 +3525,7 @@ CalcSpritePosFromCharPos
           clc
           adc #( 50 - SPRITE_CENTER_OFFSET_Y )
           sta SPRITE_POS_Y,x
-          sta 53249,y
+          sta VIC_SPRITE_Y_POS,y
           
           lda #0
           sta SPRITE_CHAR_POS_X_DELTA,x
@@ -3447,6 +3571,29 @@ CopyLevelToBackBuffer
 
 
 ;------------------------------------------------------------
+;displays get ready
+;------------------------------------------------------------
+!zone DisplayGetReady
+DisplayGetReady
+
+          lda #40
+          sta LEVEL_START_DELAY
+          lda #0
+          sta PLAYER_JUMP_POS
+          
+          lda #<TEXT_GET_READY
+          sta ZEROPAGE_POINTER_1
+          lda #>TEXT_GET_READY
+          sta ZEROPAGE_POINTER_1 + 1
+          lda #15
+          sta PARAM1
+          lda #11
+          sta PARAM2
+          jsr DisplayText
+          rts
+
+
+;------------------------------------------------------------
 ;BuildScreen
 ;creates a screen from level data
 ;------------------------------------------------------------
@@ -3488,6 +3635,9 @@ BuildScreen
           sta ZEROPAGE_POINTER_1 + 1
           
           jsr .BuildLevel
+          
+          jsr DisplayLevelNumber
+          
           rts
           
 .NoMoreLevels
@@ -3497,8 +3647,6 @@ BuildScreen
           lda #0
           sta LEVEL_NR
           jsr BuildScreen
-          
-          jsr CopyLevelToBackBuffer
           rts
           
 .BuildLevel
@@ -3703,7 +3851,15 @@ LevelObject
           
           lda PARAM3
           sta SPRITE_ACTIVE,x
+          cmp #TYPE_PLAYER
+          bne .IsNotPlayer
+
+          lda PARAM1
+          sta PLAYER_START_POS_X
+          lda PARAM2
+          sta PLAYER_START_POS_Y
           
+.IsNotPlayer          
           ;PARAM1 and PARAM2 hold x,y already
           jsr CalcSpritePosFromCharPos
           
@@ -4218,6 +4374,7 @@ DisplayText
           ldy #0
 .InLineLoop
           lda (ZEROPAGE_POINTER_1),y
+          beq .SkipChar
           cmp #$2A
           beq .EndMarkerReached
           cmp #45
@@ -4225,6 +4382,7 @@ DisplayText
           sta (ZEROPAGE_POINTER_2),y
           lda #1
           sta (ZEROPAGE_POINTER_3),y
+.SkipChar          
           iny
           jmp .InLineLoop
         
@@ -4998,6 +5156,13 @@ ITEM_CHAR_LR
 ITEM_COLOR_LR
           !byte 4,2
           
+PLAYER_START_POS_X
+          !byte 0
+PLAYER_START_POS_Y
+          !byte 0
+LEVEL_START_DELAY
+          !byte 0
+          
 BIT_TABLE
           !byte 1,2,4,8,16,32,64,128
 XBIT_TABLE
@@ -5012,6 +5177,10 @@ TEXT_FIRE_TO_START
           !text "PRESS FIRE TO PLAY*"
 TEXT_ENTER_NAME
           !text "ENTER YOUR NAME*"
+          
+TEXT_GET_READY
+          !text 226,228,230,0,232,228,234,235,237,231,"-"
+          !text 227,229,231,0,233,229,233,236,231,238,"*"
           
 COLOR_FADE_POS
           !byte 0
@@ -5072,6 +5241,11 @@ SCREEN_DATA_TABLE
           !word LEVEL_1
           !word LEVEL_2
           !word LEVEL_3
+          !word LEVEL_4
+          !word LEVEL_5
+          !word LEVEL_6
+          !word LEVEL_7
+          !word LEVEL_8
           !word 0
           
           
@@ -5121,6 +5295,118 @@ LEVEL_3
           !byte LD_OBJECT,30,14,TYPE_PLAYER
           !byte LD_OBJECT,9,12,TYPE_BAT_VANISH
           !byte LD_END
+
+LEVEL_4
+          !byte LD_AREA,1,1,38,21,2,13
+          !byte LD_LINE_H_ALT,1,5,20,96,13
+          !byte LD_LINE_H_ALT,25,5,14,96,13
+          !byte LD_LINE_H_ALT,1,8,10,96,13
+          !byte LD_LINE_H_ALT,15,8,24,96,13
+          !byte LD_LINE_H_ALT,1,11,18,96,13
+          !byte LD_LINE_H_ALT,23,11,16,96,13
+          !byte LD_LINE_H_ALT,1,14,33,96,13
+          !byte LD_LINE_H_ALT,38,14,2,96,13
+          !byte LD_LINE_H_ALT,6,17,33,96,13
+          !byte LD_LINE_H_ALT,12,20,6,96,13
+          !byte LD_OBJECT,3,21,TYPE_PLAYER
+          !byte LD_OBJECT,3,4,TYPE_MUMMY
+          !byte LD_OBJECT,33,4,TYPE_ZOMBIE
+          !byte LD_OBJECT,23,7,TYPE_ZOMBIE
+          !byte LD_OBJECT,10,10,TYPE_ZOMBIE
+          !byte LD_OBJECT,30,13,TYPE_ZOMBIE
+          !byte LD_OBJECT,20,16,TYPE_ZOMBIE
+          !byte LD_OBJECT,35,21,TYPE_ZOMBIE
+          !byte LD_END
+
+LEVEL_5
+          !byte LD_LINE_H_ALT,5,7,4,96,13
+          !byte LD_LINE_H_ALT,5,10,9,96,13
+          !byte LD_LINE_H_ALT,4,13,3,96,13
+          !byte LD_LINE_H_ALT,1,16,3,96,13
+          !byte LD_LINE_H_ALT,10,19,6,96,13
+          !byte LD_LINE_H_ALT,16,10,4,96,13
+          !byte LD_LINE_H_ALT,22,10,4,96,13
+          !byte LD_LINE_H_ALT,24,7,15,96,13
+          !byte LD_LINE_H_ALT,24,13,11,96,13
+          !byte LD_LINE_H_ALT,24,16,11,96,13
+          !byte LD_LINE_H_ALT,28,19,4,96,13
+          
+          !byte LD_OBJECT,13,18,TYPE_PLAYER
+          !byte LD_OBJECT,18,5,TYPE_BAT_LR  
+          !byte LD_OBJECT,34,8,TYPE_BAT_LR  
+          !byte LD_OBJECT,9,11,TYPE_BAT_LR  
+          !byte LD_OBJECT,15,14,TYPE_BAT_LR  
+          !byte LD_OBJECT,25,17,TYPE_BAT_LR  
+          !byte LD_END
+
+LEVEL_6
+          !byte LD_LINE_H_ALT,1,10,5,96,13
+          !byte LD_LINE_H_ALT,1,13,9,96,13
+          !byte LD_LINE_H_ALT,1,16,13,96,13
+          !byte LD_LINE_H_ALT,1,19,17,96,13
+          !byte LD_LINE_H_ALT,34,10,5,96,13
+          !byte LD_LINE_H_ALT,30,13,9,96,13
+          !byte LD_LINE_H_ALT,26,16,13,96,13
+          !byte LD_LINE_H_ALT,22,19,17,96,13
+          
+          !byte LD_OBJECT,19,21,TYPE_PLAYER
+          !byte LD_OBJECT,5,5,TYPE_BAT_LR  
+          !byte LD_OBJECT,15,5,TYPE_BAT_LR  
+          !byte LD_OBJECT,25,5,TYPE_BAT_LR  
+          !byte LD_OBJECT,35,5,TYPE_BAT_LR  
+          !byte LD_END
+
+LEVEL_7
+          !byte LD_LINE_H_ALT,1,5,5,96,13
+          !byte LD_LINE_H_ALT,1,8,5,96,13
+          !byte LD_LINE_H_ALT,1,11,5,96,13
+          !byte LD_LINE_H_ALT,1,14,5,96,13
+          !byte LD_LINE_H_ALT,1,17,5,96,13
+          !byte LD_LINE_H_ALT,1,20,5,96,13
+          
+          !byte LD_LINE_H_ALT,34,5,5,96,13
+          !byte LD_LINE_H_ALT,34,8,5,96,13
+          !byte LD_LINE_H_ALT,34,11,5,96,13
+          !byte LD_LINE_H_ALT,34,14,5,96,13
+          !byte LD_LINE_H_ALT,34,17,5,96,13
+          !byte LD_LINE_H_ALT,34,20,5,96,13
+          
+          !byte LD_LINE_V_ALT,6,8,11,128,9
+          !byte LD_LINE_V_ALT,33,8,11,128,9
+          
+          !byte LD_OBJECT,19,21,TYPE_PLAYER
+          !byte LD_OBJECT,15,5,TYPE_BAT_LR  
+          !byte LD_OBJECT,20,5,TYPE_BAT_LR  
+          !byte LD_OBJECT,25,5,TYPE_BAT_LR  
+          !byte LD_OBJECT,17,9,TYPE_BAT_LR  
+          !byte LD_OBJECT,23,9,TYPE_BAT_LR  
+          !byte LD_END
+
+LEVEL_8
+          !byte LD_LINE_H_ALT,1,5,5,96,13
+          !byte LD_LINE_H_ALT,10,5,20,96,13
+          !byte LD_LINE_H_ALT,34,5,5,96,13
+          !byte LD_LINE_H_ALT,1,8,5,96,13
+          !byte LD_LINE_H_ALT,10,8,20,96,13
+          !byte LD_LINE_H_ALT,34,8,5,96,13
+          !byte LD_LINE_V_ALT,10,6,3,2,13
+          !byte LD_LINE_V_ALT,16,6,3,2,13
+          !byte LD_LINE_V_ALT,23,6,3,2,13
+          !byte LD_LINE_V_ALT,29,6,3,2,13
+          !byte LD_LINE_H_ALT,5,11,7,96,13
+          !byte LD_LINE_H_ALT,28,11,7,96,13
+          !byte LD_LINE_H_ALT,10,14,20,96,13
+          !byte LD_LINE_H_ALT,5,17,7,96,13
+          !byte LD_LINE_H_ALT,28,17,7,96,13
+          !byte LD_LINE_H_ALT,10,20,20,96,13
+          !byte LD_OBJECT,19,21,TYPE_PLAYER
+          !byte LD_OBJECT,15,5,TYPE_BAT_LR  
+          !byte LD_OBJECT,20,5,TYPE_BAT_LR  
+          !byte LD_OBJECT,25,5,TYPE_BAT_LR  
+          !byte LD_OBJECT,17,9,TYPE_BAT_LR  
+          !byte LD_OBJECT,23,9,TYPE_BAT_LR  
+          !byte LD_END
+
 
 LEVEL_BORDER_DATA
           !byte LD_LINE_H_ALT,0,0,40,128,9
