@@ -12,7 +12,17 @@ VIC_SPRITE_X_POS        = $d000
 VIC_SPRITE_Y_POS        = $d001
 VIC_SPRITE_X_EXTEND     = $d010
 VIC_SPRITE_ENABLE       = $d015
+VIC_CONTROL             = $d016
+VIC_MEMORY_CONTROL      = $d018
 VIC_SPRITE_MULTICOLOR   = $d01c
+VIC_SPRITE_MULTICOLOR_1 = $d025
+VIC_SPRITE_MULTICOLOR_2 = $d026
+VIC_SPRITE_COLOR        = $d027
+
+VIC_BORDER_COLOR        = $d020
+VIC_BACKGROUND_COLOR    = $d021
+VIC_CHARSET_MULTICOLOR_1= $d022
+VIC_CHARSET_MULTICOLOR_2= $d023
 
 ;placeholder for various temp parameters
 PARAM1                  = $03
@@ -27,32 +37,6 @@ ZEROPAGE_POINTER_1      = $17
 ZEROPAGE_POINTER_2      = $19
 ZEROPAGE_POINTER_3      = $21
 ZEROPAGE_POINTER_4      = $23
-
-KERNAL_GETIN            = $ffe4
-KERNAL_SETMSG           = $ff90
-KERNAL_SETLFS           = $ffba
-KERNAL_SETNAM           = $ffbd
-KERNAL_LOAD             = $ffd5
-
-VIC_SPRITE_X_POS        = $d000
-VIC_SPRITE_Y_POS        = $d001
-VIC_SPRITE_X_EXTEND     = $d010
-VIC_SPRITE_ENABLE       = $d015
-VIC_CONTROL             = $d016
-VIC_MEMORY_CONTROL      = $d018
-VIC_SPRITE_MULTICOLOR   = $d01c
-VIC_SPRITE_MULTICOLOR_1 = $d025
-VIC_SPRITE_MULTICOLOR_2 = $d026
-VIC_SPRITE_COLOR        = $d027
-
-VIC_BORDER_COLOR        = $d020
-VIC_BACKGROUND_COLOR    = $d021
-VIC_CHARSET_MULTICOLOR_1= $d022
-VIC_CHARSET_MULTICOLOR_2= $d023
-
-JOYSTICK_PORT_II        = $dc00
-
-CIA_PRA                 = $dd00
 
 ;address of the screen buffer
 SCREEN_CHAR             = $CC00
@@ -167,6 +151,8 @@ OBJECT_HEIGHT           = 8 * 2
 ;item type constants
 ITEM_BULLET             = 0
 ITEM_HEALTH             = 1
+ITEM_FAST_RELOAD        = 2
+ITEM_INVINCIBLE         = 3
 ITEM_NONE               = 255
 
 ;number of possible items
@@ -426,7 +412,7 @@ TitleScreenWithoutIRQ
           ;setup level
           jsr StartLevel
           
-          lda #3
+          lda #0
           sta LEVEL_NR
           jsr BuildScreen
           
@@ -461,7 +447,11 @@ TitleScreenWithoutIRQ
           lda #2
           sta PLAYER_SHELLS
           sta PLAYER_SHELLS_MAX
-          
+
+          lda #0
+          sta PLAYER_FAST_RELOAD
+          sta PLAYER_INVINCIBLE          
+          sta SPRITE_STATE
           
 ;------------------------------------------------------------
 ;the main game loop
@@ -1215,6 +1205,10 @@ DeadControl
           ;initialise enemy values
           lda #SPRITE_PLAYER
           sta SPRITE_POINTER_BASE
+          lda #0
+          sta PLAYER_FAST_RELOAD
+          sta PLAYER_INVINCIBLE
+          sta SPRITE_STATE
           
           ;look right per default
           lda #0
@@ -1250,6 +1244,12 @@ CheckCollisions
           rts          
           
 .PlayerIsAlive          
+          lda SPRITE_STATE
+          cmp #128
+          bmi .IsVulnerable
+          rts          
+          
+.IsVulnerable          
           ldx #1
           
 .CollisionLoop          
@@ -1363,6 +1363,20 @@ IsEnemyCollidingWithPlayer
 ;------------------------------------------------------------
 !zone PlayerControl
 PlayerControl
+          lda PLAYER_INVINCIBLE
+          beq .NotInvincible
+          
+          ;count down invincibility
+          inc VIC_SPRITE_COLOR
+          dec PLAYER_INVINCIBLE
+          bne .NotInvincible
+
+          lda #0
+          sta SPRITE_STATE
+          lda #10
+          sta VIC_SPRITE_COLOR
+          
+.NotInvincible          
           ;check if the player collected an item
           ldy #0
 .ItemLoop
@@ -1414,10 +1428,15 @@ PlayerControl
           lda PLAYER_SHOT_PAUSE
           bne .PlayerMoved
           
+          lda PLAYER_FAST_RELOAD
+          beq .NoFastReload
+          dec PLAYER_FAST_RELOAD
+          inc PLAYER_STAND_STILL_TIME
+.NoFastReload          
           inc PLAYER_STAND_STILL_TIME
           lda PLAYER_STAND_STILL_TIME
           cmp #40
-          bne .HandleFire
+          bmi .HandleFire
           
           ;reload
           lda #1
@@ -1713,6 +1732,10 @@ PickItem
           beq .EffectBullet
           cmp #ITEM_HEALTH
           beq .EffectHealth
+          cmp #ITEM_FAST_RELOAD
+          beq .EffectFastReload
+          cmp #ITEM_INVINCIBLE
+          beq .EffectInvincible
           
 .RemoveItem          
           lda #ITEM_NONE
@@ -1753,6 +1776,17 @@ PickItem
           ldy PARAM1
           jmp .RemoveItem
           
+.EffectFastReload          
+          lda #200
+          sta PLAYER_FAST_RELOAD
+          jmp .RemoveItem
+          
+.EffectInvincible          
+          lda #200
+          sta PLAYER_INVINCIBLE
+          lda #128
+          sta SPRITE_STATE
+          jmp .RemoveItem
           
 ;------------------------------------------------------------
 ;put item image on screen
@@ -1947,7 +1981,7 @@ FireShot
           beq .CheckNextEnemy
 
           ldx PARAM2
-          ;is vulnerable? sprite_state,x >= 128? enemy cant be harmed       
+          ;is vulnerable?          
           lda SPRITE_STATE,x
           cmp #128
           bpl .CheckNextEnemy
@@ -2016,15 +2050,25 @@ FireShot
 .NoEnemy          
           jsr RemoveObject
           
-          jsr SpawnItem
+          ;only spawn item randomly
+          lda GenerateRandomNumber
+          and #02
+          beq .CreateItem
           jmp .ShotDone
           
 .CheckNextEnemy     
           ldx PARAM2
           inx
           cpx #8
-          bne .CheckEnemy
-          jmp  .ShotContinue
+          beq .NoEnemyHit
+          jmp .CheckEnemy
+
+.NoEnemyHit
+          jmp .ShotContinue
+          
+.CreateItem
+          jsr SpawnItem
+          jmp .ShotDone
           
 ;------------------------------------------------------------
 ;spawns an item at char position from object x
@@ -2046,7 +2090,7 @@ SpawnItem
           
 .FreeSlotFound          
           jsr GenerateRandomNumber
-          and #$01
+          and #$03
           
           sta ITEM_ACTIVE,y
           sta PARAM1
@@ -2890,6 +2934,11 @@ BehaviourBat8
 ;------------------------------------------------------------
 !zone BehaviourMummy
 BehaviourMummy
+          jsr ObjectMoveDownBlocking
+          beq .NotFalling
+          rts
+          
+.NotFalling          
           lda SPRITE_CHAR_POS_Y,x
           cmp SPRITE_CHAR_POS_Y
           bne .NoPlayerInSight
@@ -2898,7 +2947,7 @@ BehaviourMummy
           ;looking at the player?
           lda SPRITE_DIRECTION,x
           beq .LookingRight
-		; looking left
+
           lda SPRITE_CHAR_POS_X,x
           cmp SPRITE_CHAR_POS_X
           bpl .LookingAtPlayer
@@ -2911,7 +2960,6 @@ BehaviourMummy
           jmp .NoPlayerInSight
 
 .LookingAtPlayer
-		;start the attack
           lda #SPRITE_MUMMY_ATTACK_R
           clc
           adc SPRITE_DIRECTION,x
@@ -2927,7 +2975,7 @@ BehaviourMummy
           rts
           
 .AttackRight
-          ;attack to right
+          ;attack to left
           jsr ObjectMoveRightBlocking
           jsr ObjectMoveRightBlocking
           beq .ToggleDirection
@@ -2944,7 +2992,7 @@ BehaviourMummy
           lda SPRITE_MOVE_POS,x
           and #$03
           sta SPRITE_MOVE_POS,x
-          ;switch animation between 0 and 1, 2 is attack
+          
           cmp #2
           
           bpl .CanMove
@@ -2985,7 +3033,7 @@ BehaviourMummy
  
  
 ;------------------------------------------------------------
-;simply walk left/right, ??(don't fall off)??
+;simply walk left/right, don't fall off
 ;------------------------------------------------------------
 !zone BehaviourZombie
 BehaviourZombie
@@ -5110,7 +5158,11 @@ PLAYER_SHELLS_MAX
           !byte 2
 PLAYER_STAND_STILL_TIME
           !byte 0
-          
+PLAYER_FAST_RELOAD
+          !byte 0
+PLAYER_INVINCIBLE          
+          !byte 0
+
 SPRITE_HP
           !byte 0,0,0,0,0,0,0,0
           
@@ -5354,21 +5406,21 @@ DELAYED_GENERIC_COUNTER
           !byte 0
           
 ITEM_CHAR_UL
-          !byte 4,8
+          !byte 4,8,16,20
 ITEM_COLOR_UL
-          !byte 7,2
+          !byte 7,2,1,1
 ITEM_CHAR_UR
-          !byte 5,9
+          !byte 5,9,17,21
 ITEM_COLOR_UR
-          !byte 4,2
+          !byte 4,2,2,7
 ITEM_CHAR_LL
-          !byte 6,10
+          !byte 6,10,18,22
 ITEM_COLOR_LL
-          !byte 7,2
+          !byte 7,2,2,7
 ITEM_CHAR_LR
-          !byte 7,11
+          !byte 7,11,19,23
 ITEM_COLOR_LR
-          !byte 4,2
+          !byte 4,2,2,4
           
 PLAYER_START_POS_X
           !byte 0
