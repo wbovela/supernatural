@@ -12,17 +12,7 @@ VIC_SPRITE_X_POS        = $d000
 VIC_SPRITE_Y_POS        = $d001
 VIC_SPRITE_X_EXTEND     = $d010
 VIC_SPRITE_ENABLE       = $d015
-VIC_CONTROL             = $d016
-VIC_MEMORY_CONTROL      = $d018
 VIC_SPRITE_MULTICOLOR   = $d01c
-VIC_SPRITE_MULTICOLOR_1 = $d025
-VIC_SPRITE_MULTICOLOR_2 = $d026
-VIC_SPRITE_COLOR        = $d027
-
-VIC_BORDER_COLOR        = $d020
-VIC_BACKGROUND_COLOR    = $d021
-VIC_CHARSET_MULTICOLOR_1= $d022
-VIC_CHARSET_MULTICOLOR_2= $d023
 
 ;placeholder for various temp parameters
 PARAM1                  = $03
@@ -37,6 +27,32 @@ ZEROPAGE_POINTER_1      = $17
 ZEROPAGE_POINTER_2      = $19
 ZEROPAGE_POINTER_3      = $21
 ZEROPAGE_POINTER_4      = $23
+
+KERNAL_GETIN            = $ffe4
+KERNAL_SETMSG           = $ff90
+KERNAL_SETLFS           = $ffba
+KERNAL_SETNAM           = $ffbd
+KERNAL_LOAD             = $ffd5
+
+VIC_SPRITE_X_POS        = $d000
+VIC_SPRITE_Y_POS        = $d001
+VIC_SPRITE_X_EXTEND     = $d010
+VIC_SPRITE_ENABLE       = $d015
+VIC_CONTROL             = $d016
+VIC_MEMORY_CONTROL      = $d018
+VIC_SPRITE_MULTICOLOR   = $d01c
+VIC_SPRITE_MULTICOLOR_1 = $d025
+VIC_SPRITE_MULTICOLOR_2 = $d026
+VIC_SPRITE_COLOR        = $d027
+
+VIC_BORDER_COLOR        = $d020
+VIC_BACKGROUND_COLOR    = $d021
+VIC_CHARSET_MULTICOLOR_1= $d022
+VIC_CHARSET_MULTICOLOR_2= $d023
+
+JOYSTICK_PORT_II        = $dc00
+
+CIA_PRA                 = $dd00
 
 ;address of the screen buffer
 SCREEN_CHAR             = $CC00
@@ -55,7 +71,7 @@ SCREEN_BACK_COLOR       = $C400
 SPRITE_POINTER_BASE     = SCREEN_CHAR + 1016
 
 ;number of sprites divided by four
-NUMBER_OF_SPRITES_DIV_4       = 11
+NUMBER_OF_SPRITES_DIV_4       = 12
 
 ;sprite number constant
 SPRITE_BASE                   = 64
@@ -111,6 +127,10 @@ SPRITE_BAT_VANISH             = SPRITE_BASE + 41
 SPRITE_ZOMBIE_JUMP_R          = SPRITE_BASE + 42
 SPRITE_ZOMBIE_JUMP_L          = SPRITE_BASE + 43
 
+SPRITE_SPIDER_STAND           = SPRITE_BASE + 44
+SPRITE_SPIDER_WALK_1          = SPRITE_BASE + 45
+SPRITE_SPIDER_WALK_2          = SPRITE_BASE + 46
+
 ;offset from calculated char pos to true sprite pos
 SPRITE_CENTER_OFFSET_X  = 8
 SPRITE_CENTER_OFFSET_Y  = 11
@@ -145,6 +165,7 @@ TYPE_BAT_8              = 4
 TYPE_MUMMY              = 5
 TYPE_ZOMBIE             = 6
 TYPE_BAT_VANISH         = 7
+TYPE_SPIDER             = 8
 
 OBJECT_HEIGHT           = 8 * 2
 
@@ -412,7 +433,7 @@ TitleScreenWithoutIRQ
           ;setup level
           jsr StartLevel
           
-          lda #0
+          lda #8
           sta LEVEL_NR
           jsr BuildScreen
           
@@ -1486,21 +1507,9 @@ PlayerControl
           jmp .PlayerIsJumping
 
 .NotJumping
-          jsr PlayerMoveDown
-          beq .NotFalling
-          
-          ;player fell one pixel
-          jmp .PlayerFell
-          
-          ;lda #$02
-          ;bit $dc00
-          ;bne .NotDownPressed
-          ;jsr PlayerMoveDown
-          
-.NotFalling          
-          lda #0
-          sta SPRITE_FALL_POS
-          sta SPRITE_FALLING
+          ldx #0
+          jsr UpdateSpriteFall
+          bne .NotUpPressed
           
 .NotDownPressed          
           lda #$01
@@ -1509,30 +1518,6 @@ PlayerControl
           
           jmp .PlayerIsJumping
           
-.PlayerFell
-          lda #1
-          sta SPRITE_FALLING
-          
-          ldx SPRITE_FALL_POS
-          lda FALL_SPEED_TABLE,x
-          beq .FallComplete
-          sta PARAM5
-
-.FallLoop          
-          dec PARAM5
-          beq .FallComplete
-          
-          jsr PlayerMoveDown
-          jmp .FallLoop
-          
-.FallComplete
-          lda SPRITE_FALL_POS
-          cmp #( FALL_TABLE_SIZE - 1 )
-          beq .FallSpeedAtMax
-          
-          inc SPRITE_FALL_POS
-
-.FallSpeedAtMax
 .NotUpPressed          
 .JumpStopped
 .JumpComplete
@@ -1687,39 +1672,9 @@ PlayerControl
           rts
 
 .PlayerIsJumping
-          inc SPRITE_JUMP_POS
-          lda SPRITE_JUMP_POS
-          cmp #JUMP_TABLE_SIZE
-          bne .JumpOn
-          
-          lda #0
-          sta SPRITE_JUMP_POS
+          ldx #0
+          jsr UpdateSpriteJump
           jmp .JumpComplete
-          
-.JumpOn                    
-          ldx SPRITE_JUMP_POS
-          
-          lda JUMP_TABLE,x
-          bne .KeepJumping
-          jmp .JumpComplete
-          
-.KeepJumping          
-          sta PARAM5
-          
-.JumpContinue          
-          jsr PlayerMoveUp
-          beq .JumpBlocked
-          
-          dec PARAM5
-          bne .JumpContinue
-          jmp .JumpComplete
-          
-          
-.JumpBlocked
-          lda #0
-          sta SPRITE_JUMP_POS
-          jmp .JumpStopped
-
 
 ;------------------------------------------------------------
 ;pick item = remove item and apply effect
@@ -2051,9 +2006,9 @@ FireShot
           jsr RemoveObject
           
           ;only spawn item randomly
-          lda GenerateRandomNumber
-          and #02
-          beq .CreateItem
+          jsr GenerateRandomNumber
+          cmp #5
+          bmi .CreateItem
           jmp .ShotDone
           
 .CheckNextEnemy     
@@ -2526,13 +2481,218 @@ CanWalkRight
 
 
 ;------------------------------------------------------------
+;walk object left if could fall off jump if blocked turn
+;x = object index
+;------------------------------------------------------------
+!zone ObjectWalkOrJumpLeft
+ObjectWalkOrJumpLeft          
+          
+          lda SPRITE_CHAR_POS_X_DELTA,x
+          beq .CheckCanMoveLeft
+          
+.CanMoveLeft
+          dec SPRITE_CHAR_POS_X_DELTA,x
+          
+          jsr MoveSpriteLeft
+          lda #1
+          rts
+          
+.CheckCanMoveLeft
+          jsr CanWalkOrJumpLeft
+          beq .Blocked
+          
+          cmp #1
+          beq .WalkLeft
+
+          ;jump
+          lda SPRITE_JUMP_POS,x
+          bne .WalkLeft
+          
+          lda #1
+          sta SPRITE_JUMP_POS,x
+          
+.WalkLeft          
+          lda #8
+          sta SPRITE_CHAR_POS_X_DELTA,x
+          dec SPRITE_CHAR_POS_X,x
+          
+          jmp .CanMoveLeft
+          
+.Blocked          
+          rts
+
+
+;------------------------------------------------------------
+;checks if an object can walk or jump left (jump if would fall off)
+;x = object index
+;returns 0 if blocked
+;returns 1 if possible
+;returns 2 if jump required (not blocked, but in front of hole)
+;------------------------------------------------------------
+!zone CanWalkOrJumpLeft
+CanWalkOrJumpLeft
+          ldy SPRITE_CHAR_POS_Y,x
+          dey
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+          sta ZEROPAGE_POINTER_1
+          lda SCREEN_BACK_LINE_OFFSET_TABLE_HI,y
+          sta ZEROPAGE_POINTER_1 + 1
+          
+          ldy SPRITE_CHAR_POS_X,x
+          dey
+          
+          lda (ZEROPAGE_POINTER_1),y
+          
+          jsr IsCharBlocking
+          bne .BlockedLeft
+          
+          tya
+          clc
+          adc #40
+          tay
+          lda (ZEROPAGE_POINTER_1),y
+          jsr IsCharBlocking
+          bne .BlockedLeft
+
+          ;is a hole in front          
+          ldy SPRITE_CHAR_POS_Y,x
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+          sta ZEROPAGE_POINTER_1
+          lda SCREEN_BACK_LINE_OFFSET_TABLE_HI,y
+          sta ZEROPAGE_POINTER_1 + 1
+          
+          lda SPRITE_CHAR_POS_X,x
+          clc
+          adc #39
+          tay
+          
+          lda (ZEROPAGE_POINTER_1),y
+          jsr IsCharBlockingFall
+          bne .NoHole
+
+          lda #2
+          rts
+          
+.NoHole          
+          lda #1
+          rts
+          
+          
+.BlockedLeft
+          lda #0
+          rts
+          
+          
+;------------------------------------------------------------
+;walk object right if could fall off jump if blocked turn
+;x = object index
+;------------------------------------------------------------
+!zone ObjectWalkOrJumpRight
+ObjectWalkOrJumpRight
+                    
+          lda SPRITE_CHAR_POS_X_DELTA,x
+          beq .CheckCanMoveRight
+          
+.CanMoveRight
+          inc SPRITE_CHAR_POS_X_DELTA,x
+          
+          lda SPRITE_CHAR_POS_X_DELTA,x
+          cmp #8
+          bne .NoCharStep
+          
+          lda #0
+          sta SPRITE_CHAR_POS_X_DELTA,x
+          inc SPRITE_CHAR_POS_X,x
+          
+.NoCharStep          
+          jsr MoveSpriteRight
+          lda #1
+          rts
+          
+.CheckCanMoveRight
+          jsr CanWalkOrJumpRight
+          beq .Blocked
+          
+          cmp #1
+          beq .CanMoveRight
+
+          ;jump
+          lda SPRITE_JUMP_POS,x
+          bne .CanMoveRight
+          
+          lda #1
+          sta SPRITE_JUMP_POS,x
+          jmp .CanMoveRight
+          
+.Blocked          
+          rts
+          
+          
+;------------------------------------------------------------
+;checks if an object can walk or jump right (jump if would fall off)
+;x = object index
+;returns 0 if blocked
+;returns 1 if possible
+;------------------------------------------------------------
+!zone CanWalkOrJumpRight
+CanWalkOrJumpRight
+          ldy SPRITE_CHAR_POS_Y,x
+          dey
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+          sta ZEROPAGE_POINTER_1
+          lda SCREEN_BACK_LINE_OFFSET_TABLE_HI,y
+          sta ZEROPAGE_POINTER_1 + 1
+          
+          ldy SPRITE_CHAR_POS_X,x
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          
+          jsr IsCharBlocking
+          bne .BlockedRight
+          
+          tya
+          clc
+          adc #40
+          tay
+          lda (ZEROPAGE_POINTER_1),y
+          jsr IsCharBlocking
+          bne .BlockedRight
+
+          ;is a hole in front?
+          ldy SPRITE_CHAR_POS_Y,x
+          iny
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+          sta ZEROPAGE_POINTER_1
+          lda SCREEN_BACK_LINE_OFFSET_TABLE_HI,y
+          sta ZEROPAGE_POINTER_1 + 1
+          
+          ldy SPRITE_CHAR_POS_X,x
+          iny
+
+          lda (ZEROPAGE_POINTER_1),y
+          jsr IsCharBlockingFall
+          bne .NoHole
+
+          lda #2
+          rts
+          
+.NoHole          
+          lda #1
+          rts
+          
+.BlockedRight          
+          lda #0
+          rts
+
+
+;------------------------------------------------------------
 ;PlayerMoveUp
 ;------------------------------------------------------------
 !zone PlayerMoveUp
 PlayerMoveUp
           ldx #0
-          
           jmp ObjectMoveUpBlocking
+          
           
 ;------------------------------------------------------------
 ;move object up if not blocked
@@ -2626,15 +2786,6 @@ ObjectMoveUp
           rts
           
           
-;------------------------------------------------------------
-;PlayerMoveDown
-;------------------------------------------------------------
-!zone PlayerMoveDown
-PlayerMoveDown
-          ldx #0
-          
-          jmp ObjectMoveDownBlocking
-
 ;------------------------------------------------------------
 ;move object down if not blocked
 ;x = object index
@@ -2945,21 +3096,9 @@ BehaviourMummy
           
           ;player on same height
           ;looking at the player?
-          lda SPRITE_DIRECTION,x
-          beq .LookingRight
+          jsr LookingAtPlayer
+          beq .NoPlayerInSight
 
-          lda SPRITE_CHAR_POS_X,x
-          cmp SPRITE_CHAR_POS_X
-          bpl .LookingAtPlayer
-          jmp .NoPlayerInSight
-          
-.LookingRight
-          lda SPRITE_CHAR_POS_X,x
-          cmp SPRITE_CHAR_POS_X
-          bmi .LookingAtPlayer
-          jmp .NoPlayerInSight
-
-.LookingAtPlayer
           lda #SPRITE_MUMMY_ATTACK_R
           clc
           adc SPRITE_DIRECTION,x
@@ -3091,37 +3230,7 @@ BehaviourZombie
           sta SPRITE_POINTER_BASE,x
           
 .UpdateJump
-          inc SPRITE_JUMP_POS,x
-          lda SPRITE_JUMP_POS,x
-          cmp #JUMP_TABLE_SIZE
-          bne .JumpOn
-          
-          ;jump done
-          lda #0
-          sta SPRITE_JUMP_POS,x
-          rts
-          
-.JumpOn                    
-          ldy SPRITE_JUMP_POS,x
-          lda JUMP_TABLE,y
-          bne .KeepJumping
-          rts
-          
-.KeepJumping          
-          sta PARAM5
-          
-.JumpContinue          
-          jsr ObjectMoveUpBlocking
-          beq .JumpBlocked
-          
-          dec PARAM5
-          bne .JumpContinue
-          rts
-          
-          
-.JumpBlocked
-          lda #0
-          sta SPRITE_JUMP_POS,x
+          jsr UpdateSpriteJump
           rts
 
 .Collapsing1
@@ -3140,6 +3249,7 @@ BehaviourZombie
 
           ;generate hidden time
           jsr GenerateRandomNumber
+          and #$31
           clc
           adc #25
           sta SPRITE_MOVE_POS,x
@@ -3190,7 +3300,6 @@ BehaviourZombie
           lda SPRITE_MOVE_POS,x
           and #$07
           sta SPRITE_MOVE_POS,x
-          
           cmp #4
           
           bpl .CanMove
@@ -3213,9 +3322,19 @@ BehaviourZombie
           ;move left
           jsr ObjectMoveLeftBlocking
           beq .ToggleDirection
+          
+          lda SPRITE_ANNOYED,x
+          beq .NotAnnoyed
+          jsr ObjectMoveLeftBlocking
+          beq .ToggleDirection
+.NotAnnoyed          
           rts
           
 .MoveRight
+          jsr ObjectMoveRightBlocking
+          beq .ToggleDirection
+          lda SPRITE_ANNOYED,x
+          beq .NotAnnoyed
           jsr ObjectMoveRightBlocking
           beq .ToggleDirection
           rts
@@ -3513,14 +3632,151 @@ BehaviourBatVanishing
           jmp HitBehaviourVanish
           
  
+;------------------------------------------------------------
+;run left/right, jump off directional
+;------------------------------------------------------------
+!zone BehaviourSpider
+BehaviourSpider
+          ;animate spider
+          inc SPRITE_ANIM_DELAY,x
+          lda SPRITE_ANIM_DELAY,x
+          cmp #2
+          bne .NoAnimUpdate
+          
+          lda #0
+          sta SPRITE_ANIM_DELAY,x
+          
+          inc SPRITE_ANIM_POS,x
+          lda SPRITE_ANIM_POS,x
+          and #$03
+          sta SPRITE_ANIM_POS,x
+          
+          tay
+          lda SPIDER_ANIMATION_TABLE,y
+          sta SPRITE_POINTER_BASE,x
+          
+.NoAnimUpdate          
+          lda SPRITE_JUMP_POS,x
+          bne .NoFallHandling
+          
+          jsr UpdateSpriteFall
+          sta SPRITE_FALLING,x
+          
+.NoFallHandling
+
+          lda #3
+          sta PARAM6
+.MoveStep
+          dec PARAM6
+          beq .MoveDone
+
+          lda SPRITE_DIRECTION,x
+          beq .MoveRight
+          
+          ;move left
+          lda SPRITE_JUMP_POS,x
+          ora SPRITE_FALLING,x
+          bne .OnlyMoveLeft
+          
+          jsr ObjectWalkOrJumpLeft
+          beq .ToggleDirection
+          jmp .MoveStep
+
+.MoveDone
+          lda SPRITE_JUMP_POS,x
+          beq .NotJumping
+          jsr UpdateSpriteJump
+.NotJumping          
+          rts
+          
+.OnlyMoveLeft
+          jsr ObjectMoveLeftBlocking
+          beq .ToggleDirection
+          jmp .MoveStep
+          
+.MoveRight
+          lda SPRITE_JUMP_POS,x
+          ora SPRITE_FALLING,x
+          bne .OnlyMoveRight
+          
+          jsr ObjectWalkOrJumpRight
+          beq .ToggleDirection
+          jmp .MoveStep
+
+.OnlyMoveRight
+          jsr ObjectMoveRightBlocking
+          beq .ToggleDirection
+          jmp .MoveStep
+
+.ToggleDirection
+          lda SPRITE_DIRECTION,x
+          eor #1
+          sta SPRITE_DIRECTION,x
+          jmp .MoveStep
+          
  
+;------------------------------------------------------------
+;determins if object is looking at player
+;X = sprite index
+;returns 1 if looking at player, 0 if not
+;------------------------------------------------------------
+!zone LookingAtPlayer
+LookingAtPlayer
+          lda SPRITE_DIRECTION,x
+          beq .LookingRight
+
+          lda SPRITE_CHAR_POS_X,x
+          cmp SPRITE_CHAR_POS_X
+          bpl .LookingAtPlayer
+          jmp .NoPlayerInSight
+
+.LookingRight
+          lda SPRITE_CHAR_POS_X,x
+          cmp SPRITE_CHAR_POS_X
+          bmi .LookingAtPlayer
+          jmp .NoPlayerInSight
+          
+.LookingAtPlayer
+          lda #1
+          rts
+ 
+.NoPlayerInSight
+          lda #0
+          rts
+
 ;------------------------------------------------------------
 ;hit behaviour getting hurt
 ;------------------------------------------------------------
 !zone HitBehaviourHurt
 HitBehaviourHurt
-          lda #1
-          sta SPRITE_ANNOYED,x
+          inc SPRITE_ANNOYED,x
+          
+          ldy SPRITE_ACTIVE,x
+          lda TYPE_ANNOYED_COLOR,y
+          sta VIC_SPRITE_COLOR,x
+          rts
+          
+ 
+;------------------------------------------------------------
+;hit behaviour getting hurt and turn towards the player
+;------------------------------------------------------------
+!zone HitBehaviourHurtTurn
+HitBehaviourHurtTurn
+          ;looking at the player?
+          jsr LookingAtPlayer
+          bne .AlreadySeeingPlayer
+          
+          ;turn around
+          lda SPRITE_DIRECTION,x
+          eor #$01
+          sta SPRITE_DIRECTION,x
+          
+.AlreadySeeingPlayer          
+          inc SPRITE_ANNOYED,x
+          
+          ldy SPRITE_ACTIVE,x
+          lda TYPE_ANNOYED_COLOR,y
+          sta VIC_SPRITE_COLOR,x
           rts
           
  
@@ -3531,6 +3787,13 @@ HitBehaviourHurt
 HitBehaviourCrumble
           lda SPRITE_STATE,x
           bne .NoHit
+          
+          inc SPRITE_ANNOYED,x
+          
+          ldy SPRITE_ACTIVE,x
+          lda TYPE_ANNOYED_COLOR,y
+          sta VIC_SPRITE_COLOR,x
+          
           lda #SPRITE_ZOMBIE_COLLAPSE_R_1
           clc
           adc SPRITE_DIRECTION,x
@@ -3551,6 +3814,13 @@ HitBehaviourVanish
           lda SPRITE_STATE,x
           bne .NoHit
           
+          lda #1
+          sta SPRITE_ANNOYED,x
+          
+          ldy SPRITE_ACTIVE,x
+          lda TYPE_ANNOYED_COLOR,y
+          sta VIC_SPRITE_COLOR,x
+          
           lda #SPRITE_BAT_VANISH
           sta SPRITE_POINTER_BASE,x
           
@@ -3560,6 +3830,96 @@ HitBehaviourVanish
 .NoHit          
           rts
           
+ 
+ 
+;------------------------------------------------------------
+;update sprite jump
+;expect x as sprite index (0 to 7)
+;returns 0 if blocked/done
+;returns 1 if jump continues
+;------------------------------------------------------------
+ 
+!zone UpdateSpriteJump
+UpdateSpriteJump
+          inc SPRITE_JUMP_POS,x
+          lda SPRITE_JUMP_POS,x
+          cmp #JUMP_TABLE_SIZE
+          bne .JumpOn
+          
+          ;jump done
+          jmp .JumpBlocked
+          
+.JumpOn          
+          ldy SPRITE_JUMP_POS,x
+          lda JUMP_TABLE,y
+          bne .KeepJumping
+          
+          lda #1
+          rts
+          
+.KeepJumping          
+          sta PARAM5
+          
+.JumpContinue          
+          jsr ObjectMoveUpBlocking
+          beq .JumpBlocked
+          
+          dec PARAM5
+          bne .JumpContinue
+          
+          lda #1
+          rts
+          
+.JumpBlocked
+          lda #0
+          sta SPRITE_JUMP_POS,x
+          rts
+
+ 
+;------------------------------------------------------------
+;update sprite fall
+;expect x as sprite index (0 to 7)
+;returns 0 if not falling
+;returns 1 if falling
+;------------------------------------------------------------
+ 
+!zone UpdateSpriteFall
+UpdateSpriteFall
+          jsr ObjectMoveDownBlocking
+          beq .NotFalling
+          
+          ;fell one pixel
+          lda #1
+          sta SPRITE_FALLING,x
+          
+          ldy SPRITE_FALL_POS,x
+          lda FALL_SPEED_TABLE,y
+          beq .FallComplete
+          sta PARAM5
+
+.FallLoop          
+          dec PARAM5
+          beq .FallComplete
+          
+          jsr ObjectMoveDownBlocking
+          jmp .FallLoop
+          
+.FallComplete
+          lda SPRITE_FALL_POS,x
+          cmp #( FALL_TABLE_SIZE - 1 )
+          beq .FallSpeedAtMax
+          
+          inc SPRITE_FALL_POS,x
+          
+.FallSpeedAtMax          
+          lda #1
+          rts
+          
+.NotFalling          
+          lda #0
+          sta SPRITE_FALL_POS,x
+          sta SPRITE_FALLING,x
+          rts
  
 ;------------------------------------------------------------
 ;Move Sprite Left
@@ -3640,143 +4000,6 @@ MoveSpriteDown
           lda SPRITE_POS_Y,x
           sta VIC_SPRITE_Y_POS,y
           rts  
-
-
-;------------------------------------------------------------
-;IsCharBlocking
-;checks if a char is blocking
-;PARAM1 = char_pos_x
-;PARAM2 = char_pos_y
-;returns 1 for blocking, 0 for not blocking
-;------------------------------------------------------------
-!zone IsCharBlocking
-IsCharBlocking
-          cmp #128
-          bpl .Blocking
-          
-          lda #0
-          rts
-          
-.Blocking
-          lda #1
-          rts
-
-
-;------------------------------------------------------------
-;IsCharBlockingFall
-;checks if a char is blocking a fall (downwards)
-;PARAM1 = char_pos_x
-;PARAM2 = char_pos_y
-;returns 1 for blocking, 0 for not blocking
-;------------------------------------------------------------
-!zone IsCharBlockingFall
-IsCharBlockingFall
-          cmp #96
-          bpl .Blocking
-          
-          lda #0
-          rts
-          
-.Blocking
-          lda #1
-          rts
-
-
-;------------------------------------------------------------
-;CalcSpritePosFromCharPos
-;calculates the real sprite coordinates from screen char pos
-;and sets them directly
-;PARAM1 = char_pos_x
-;PARAM2 = char_pos_y
-;X      = sprite index
-;------------------------------------------------------------
-!zone CalcSpritePosFromCharPos    
-CalcSpritePosFromCharPos
-
-          ;offset screen to border 24,50
-          lda BIT_TABLE,x
-          eor #$ff
-          and SPRITE_POS_X_EXTEND
-          sta SPRITE_POS_X_EXTEND
-          sta VIC_SPRITE_X_EXTEND
-          
-          ;need extended x bit?
-          lda PARAM1
-          sta SPRITE_CHAR_POS_X,x
-          cmp #30
-          bcc .NoXBit
-          
-          lda BIT_TABLE,x
-          ora SPRITE_POS_X_EXTEND
-          sta SPRITE_POS_X_EXTEND
-          sta VIC_SPRITE_X_EXTEND
-          
-.NoXBit   
-          ;calculate sprite positions (offset from border)
-          txa
-          asl
-          tay
-          
-          lda PARAM1
-          asl
-          asl
-          asl
-          clc
-          adc #( 24 - SPRITE_CENTER_OFFSET_X )
-          sta SPRITE_POS_X,x
-          sta VIC_SPRITE_X_POS,y
-          
-          lda PARAM2
-          sta SPRITE_CHAR_POS_Y,x
-          asl
-          asl
-          asl
-          clc
-          adc #( 50 - SPRITE_CENTER_OFFSET_Y )
-          sta SPRITE_POS_Y,x
-          sta VIC_SPRITE_Y_POS,y
-          
-          lda #0
-          sta SPRITE_CHAR_POS_X_DELTA,x
-          sta SPRITE_CHAR_POS_Y_DELTA,x
-          rts
-
-
-;------------------------------------------------------------
-;copies the screen data to the back buffer area
-;------------------------------------------------------------
-!zone CopyLevelToBackBuffer
-CopyLevelToBackBuffer
-
-          ldx #$00
-.ClearLoop          
-          lda SCREEN_CHAR,x
-          sta SCREEN_BACK_CHAR,x
-          lda SCREEN_CHAR + 230,x
-          sta SCREEN_BACK_CHAR + 230,x
-          lda SCREEN_CHAR + 460,x
-          sta SCREEN_BACK_CHAR + 460,x
-          lda SCREEN_CHAR + 690,x
-          sta SCREEN_BACK_CHAR + 690,x
-          inx
-          cpx #230
-          bne .ClearLoop
-
-          ldx #$00
-.ColorLoop          
-          lda SCREEN_COLOR,x
-          sta SCREEN_BACK_COLOR,x
-          lda SCREEN_COLOR + 230,x
-          sta SCREEN_BACK_COLOR + 230,x
-          lda SCREEN_COLOR + 460,x
-          sta SCREEN_BACK_COLOR + 460,x
-          lda SCREEN_COLOR + 690,x
-          sta SCREEN_BACK_COLOR + 690,x
-          inx
-          cpx #230
-          bne .ColorLoop
-          
-          rts
 
 
 ;------------------------------------------------------------
@@ -4641,195 +4864,6 @@ DisplayText
           rts
 
 
-;------------------------------------------------------------
-;increases score by A
-;note that the score is only shown; not held in a variable
-;------------------------------------------------------------
-!zone IncreaseScore
-IncreaseScore
-          sta PARAM1
-          stx PARAM2
-          sty PARAM3
-          
-.IncreaseBy1          
-          ldx #6
-          
-.IncreaseDigit          
-          inc SCREEN_CHAR + ( 23 * 40 + 8 ),x
-          lda SCREEN_CHAR + ( 23 * 40 + 8 ),x
-          cmp #58
-          bne .IncreaseBy1Done
-          
-          ;looped digit, increase next
-          lda #48
-          sta SCREEN_CHAR + ( 23 * 40 + 8 ),x
-          dex
-          ;TODO - this might overflow
-          jmp .IncreaseDigit
-          
-.IncreaseBy1Done          
-          dec PARAM1
-          bne .IncreaseBy1
-          
-          ;increase complete, restore x,y
-          ldx PARAM2
-          ldy PARAM3
-          rts
-
-
-;------------------------------------------------------------
-;displays level number
-;------------------------------------------------------------
-!zone DisplayLevelNumber
-DisplayLevelNumber
-          lda LEVEL_NR
-          clc
-          adc #1
-          jsr DivideBy10
-          
-          pha
-          
-          ;10 digit
-          tya
-          clc
-          adc #48
-          sta SCREEN_CHAR + ( 23 * 40 + 37 )
-          
-          pla
-          clc
-          adc #48
-          sta SCREEN_CHAR + ( 23 * 40 + 38 )
-          
-          rts
-          
-
-;------------------------------------------------------------
-;displays live number
-;------------------------------------------------------------
-!zone DisplayLiveNumber
-DisplayLiveNumber
-          lda PLAYER_LIVES
-          jsr DivideBy10
-          
-          pha
-          
-          ;10 digit
-          tya
-          clc
-          adc #48
-          sta SCREEN_CHAR + ( 24 * 40 + 37 )
-          
-          pla
-          clc
-          adc #48
-          sta SCREEN_CHAR + ( 24 * 40 + 38 )
-          
-          rts
-          
-
-;------------------------------------------------------------
-;generates a sometimes random number
-;------------------------------------------------------------
-!zone GenerateRandomNumber
-GenerateRandomNumber
-          lda $dc04
-          eor $dc05
-          eor $dd04
-          adc $dd05
-          eor $dd06
-          eor $dd07
-          rts
-
-;------------------------------------------------------------
-;copies charset from ZEROPAGE_POINTER_1 to ZEROPAGE_POINTER_2
-;------------------------------------------------------------
-
-!zone CopyCharSet
-CopyCharSet
-          ;set target address ($F000)
-          lda #$00
-          sta ZEROPAGE_POINTER_2
-          lda #$F0
-          sta ZEROPAGE_POINTER_2 + 1
-
-          ldx #$00
-          ldy #$00
-          lda #0
-          sta PARAM2
-
-.NextLine
-          lda (ZEROPAGE_POINTER_1),Y
-          sta (ZEROPAGE_POINTER_2),Y
-          inx
-          iny
-          cpx #$08
-          bne .NextLine
-          cpy #$00
-          bne .PageBoundaryNotReached
-          
-          ;we've reached the next 256 bytes, inc high byte
-          inc ZEROPAGE_POINTER_1 + 1
-          inc ZEROPAGE_POINTER_2 + 1
-
-.PageBoundaryNotReached
-
-          ;only copy 254 chars to keep irq vectors intact
-          inc PARAM2
-          lda PARAM2
-          cmp #254
-          beq .CopyCharsetDone
-          ldx #$00
-          jmp .NextLine
-
-.CopyCharsetDone
-          rts
-
-
-;------------------------------------------------------------
-;copies sprites from ZEROPAGE_POINTER_1 to ZEROPAGE_POINTER_2
-;       sprites are copied in numbers of four
-;------------------------------------------------------------
-
-!zone CopySprites
-CopySprites
-          ldy #$00
-          ldx #$00
-          
-          lda #00
-          sta ZEROPAGE_POINTER_2
-          lda #$d0
-          sta ZEROPAGE_POINTER_2 + 1
-          
-          ;4 sprites per loop
-.SpriteLoop
-          lda (ZEROPAGE_POINTER_1),y
-          sta (ZEROPAGE_POINTER_2),y
-          iny
-          bne .SpriteLoop
-          inx
-          inc ZEROPAGE_POINTER_1+1
-          inc ZEROPAGE_POINTER_2+1
-          cpx #NUMBER_OF_SPRITES_DIV_4
-          bne .SpriteLoop
-
-          rts
-          
-          
-;------------------------------------------------------------
-;divides A by 10
-;returns remainder in A
-;returns result in Y
-;------------------------------------------------------------
-!zone DivideBy10
-DivideBy10
-          sec
-          ldy #$FF
-.divloop
-          iny
-          sbc #10
-          bcs .divloop
-          adc #10
-          rts
 
 
           
@@ -5024,6 +5058,334 @@ TITLE_LOGO_SCREEN_CHAR
         !byte 32,0,0,32,32,0,32,0,0,32,32,0,32,32,0,0,0,0,0,160,0,0,0,0,32,160,0,0,0,0,0,0
         !byte 0,0,0,0,0,0,0,0,160,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
         !byte 160,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+
+
+;------------------------------------------------------------
+;increases score by A
+;note that the score is only shown; not held in a variable
+;------------------------------------------------------------
+!zone IncreaseScore
+IncreaseScore
+          sta PARAM1
+          stx PARAM2
+          sty PARAM3
+          
+.IncreaseBy1          
+          ldx #6
+          
+.IncreaseDigit          
+          inc SCREEN_CHAR + ( 23 * 40 + 8 ),x
+          lda SCREEN_CHAR + ( 23 * 40 + 8 ),x
+          cmp #58
+          bne .IncreaseBy1Done
+          
+          ;looped digit, increase next
+          lda #48
+          sta SCREEN_CHAR + ( 23 * 40 + 8 ),x
+          dex
+          ;TODO - this might overflow
+          jmp .IncreaseDigit
+          
+.IncreaseBy1Done          
+          dec PARAM1
+          bne .IncreaseBy1
+          
+          ;increase complete, restore x,y
+          ldx PARAM2
+          ldy PARAM3
+          rts
+
+
+;------------------------------------------------------------
+;displays level number
+;------------------------------------------------------------
+!zone DisplayLevelNumber
+DisplayLevelNumber
+          lda LEVEL_NR
+          clc
+          adc #1
+          jsr DivideBy10
+          
+          pha
+          
+          ;10 digit
+          tya
+          clc
+          adc #48
+          sta SCREEN_CHAR + ( 23 * 40 + 37 )
+          
+          pla
+          clc
+          adc #48
+          sta SCREEN_CHAR + ( 23 * 40 + 38 )
+          
+          rts
+          
+
+;------------------------------------------------------------
+;displays live number
+;------------------------------------------------------------
+!zone DisplayLiveNumber
+DisplayLiveNumber
+          lda PLAYER_LIVES
+          jsr DivideBy10
+          
+          pha
+          
+          ;10 digit
+          tya
+          clc
+          adc #48
+          sta SCREEN_CHAR + ( 24 * 40 + 37 )
+          
+          pla
+          clc
+          adc #48
+          sta SCREEN_CHAR + ( 24 * 40 + 38 )
+          
+          rts
+          
+
+;------------------------------------------------------------
+;generates a sometimes random number
+;------------------------------------------------------------
+!zone GenerateRandomNumber
+GenerateRandomNumber
+          lda $dc04
+          eor $dc05
+          eor $dd04
+          adc $dd05
+          eor $dd06
+          eor $dd07
+          rts
+
+;------------------------------------------------------------
+;copies charset from ZEROPAGE_POINTER_1 to ZEROPAGE_POINTER_2
+;------------------------------------------------------------
+
+!zone CopyCharSet
+CopyCharSet
+          ;set target address ($F000)
+          lda #$00
+          sta ZEROPAGE_POINTER_2
+          lda #$F0
+          sta ZEROPAGE_POINTER_2 + 1
+
+          ldx #$00
+          ldy #$00
+          lda #0
+          sta PARAM2
+
+.NextLine
+          lda (ZEROPAGE_POINTER_1),Y
+          sta (ZEROPAGE_POINTER_2),Y
+          inx
+          iny
+          cpx #$08
+          bne .NextLine
+          cpy #$00
+          bne .PageBoundaryNotReached
+          
+          ;we've reached the next 256 bytes, inc high byte
+          inc ZEROPAGE_POINTER_1 + 1
+          inc ZEROPAGE_POINTER_2 + 1
+
+.PageBoundaryNotReached
+
+          ;only copy 254 chars to keep irq vectors intact
+          inc PARAM2
+          lda PARAM2
+          cmp #254
+          beq .CopyCharsetDone
+          ldx #$00
+          jmp .NextLine
+
+.CopyCharsetDone
+          rts
+
+
+;------------------------------------------------------------
+;copies sprites from ZEROPAGE_POINTER_1 to ZEROPAGE_POINTER_2
+;       sprites are copied in numbers of four
+;------------------------------------------------------------
+
+!zone CopySprites
+CopySprites
+          ldy #$00
+          ldx #$00
+          
+          lda #00
+          sta ZEROPAGE_POINTER_2
+          lda #$d0
+          sta ZEROPAGE_POINTER_2 + 1
+          
+          ;4 sprites per loop
+.SpriteLoop
+          lda (ZEROPAGE_POINTER_1),y
+          sta (ZEROPAGE_POINTER_2),y
+          iny
+          bne .SpriteLoop
+          inx
+          inc ZEROPAGE_POINTER_1+1
+          inc ZEROPAGE_POINTER_2+1
+          cpx #NUMBER_OF_SPRITES_DIV_4
+          bne .SpriteLoop
+
+          rts
+          
+          
+;------------------------------------------------------------
+;divides A by 10
+;returns remainder in A
+;returns result in Y
+;------------------------------------------------------------
+!zone DivideBy10
+DivideBy10
+          sec
+          ldy #$FF
+.divloop
+          iny
+          sbc #10
+          bcs .divloop
+          adc #10
+          rts
+
+
+;------------------------------------------------------------
+;IsCharBlocking
+;checks if a char is blocking
+;PARAM1 = char_pos_x
+;PARAM2 = char_pos_y
+;returns 1 for blocking, 0 for not blocking
+;------------------------------------------------------------
+!zone IsCharBlocking
+IsCharBlocking
+          cmp #128
+          bpl .Blocking
+          
+          lda #0
+          rts
+          
+.Blocking
+          lda #1
+          rts
+
+
+;------------------------------------------------------------
+;IsCharBlockingFall
+;checks if a char is blocking a fall (downwards)
+;PARAM1 = char_pos_x
+;PARAM2 = char_pos_y
+;returns 1 for blocking, 0 for not blocking
+;------------------------------------------------------------
+!zone IsCharBlockingFall
+IsCharBlockingFall
+          cmp #96
+          bpl .Blocking
+          
+          lda #0
+          rts
+          
+.Blocking
+          lda #1
+          rts
+
+
+;------------------------------------------------------------
+;CalcSpritePosFromCharPos
+;calculates the real sprite coordinates from screen char pos
+;and sets them directly
+;PARAM1 = char_pos_x
+;PARAM2 = char_pos_y
+;X      = sprite index
+;------------------------------------------------------------
+!zone CalcSpritePosFromCharPos    
+CalcSpritePosFromCharPos
+
+          ;offset screen to border 24,50
+          lda BIT_TABLE,x
+          eor #$ff
+          and SPRITE_POS_X_EXTEND
+          sta SPRITE_POS_X_EXTEND
+          sta VIC_SPRITE_X_EXTEND
+          
+          ;need extended x bit?
+          lda PARAM1
+          sta SPRITE_CHAR_POS_X,x
+          cmp #30
+          bcc .NoXBit
+          
+          lda BIT_TABLE,x
+          ora SPRITE_POS_X_EXTEND
+          sta SPRITE_POS_X_EXTEND
+          sta VIC_SPRITE_X_EXTEND
+          
+.NoXBit   
+          ;calculate sprite positions (offset from border)
+          txa
+          asl
+          tay
+          
+          lda PARAM1
+          asl
+          asl
+          asl
+          clc
+          adc #( 24 - SPRITE_CENTER_OFFSET_X )
+          sta SPRITE_POS_X,x
+          sta VIC_SPRITE_X_POS,y
+          
+          lda PARAM2
+          sta SPRITE_CHAR_POS_Y,x
+          asl
+          asl
+          asl
+          clc
+          adc #( 50 - SPRITE_CENTER_OFFSET_Y )
+          sta SPRITE_POS_Y,x
+          sta VIC_SPRITE_Y_POS,y
+          
+          lda #0
+          sta SPRITE_CHAR_POS_X_DELTA,x
+          sta SPRITE_CHAR_POS_Y_DELTA,x
+          rts
+
+
+;------------------------------------------------------------
+;copies the screen data to the back buffer area
+;------------------------------------------------------------
+!zone CopyLevelToBackBuffer
+CopyLevelToBackBuffer
+
+          ldx #$00
+.ClearLoop          
+          lda SCREEN_CHAR,x
+          sta SCREEN_BACK_CHAR,x
+          lda SCREEN_CHAR + 230,x
+          sta SCREEN_BACK_CHAR + 230,x
+          lda SCREEN_CHAR + 460,x
+          sta SCREEN_BACK_CHAR + 460,x
+          lda SCREEN_CHAR + 690,x
+          sta SCREEN_BACK_CHAR + 690,x
+          inx
+          cpx #230
+          bne .ClearLoop
+
+          ldx #$00
+.ColorLoop          
+          lda SCREEN_COLOR,x
+          sta SCREEN_BACK_COLOR,x
+          lda SCREEN_COLOR + 230,x
+          sta SCREEN_BACK_COLOR + 230,x
+          lda SCREEN_COLOR + 460,x
+          sta SCREEN_BACK_COLOR + 460,x
+          lda SCREEN_COLOR + 690,x
+          sta SCREEN_BACK_COLOR + 690,x
+          inx
+          cpx #230
+          bne .ColorLoop
+          
+          rts
 
 
 ;--------------------------------------------------
@@ -5221,6 +5583,7 @@ ENEMY_BEHAVIOUR_TABLE_LO
           !byte <BehaviourMummy
           !byte <BehaviourZombie
           !byte <BehaviourBatVanishing
+          !byte <BehaviourSpider
           
 ENEMY_BEHAVIOUR_TABLE_HI
           !byte >PlayerControl
@@ -5230,23 +5593,26 @@ ENEMY_BEHAVIOUR_TABLE_HI
           !byte >BehaviourMummy
           !byte >BehaviourZombie
           !byte >BehaviourBatVanishing
+          !byte >BehaviourSpider
           
 ;behaviour for an enemy being hit          
 ENEMY_HIT_BEHAVIOUR_TABLE_LO          
           !byte <HitBehaviourHurt     ;bat diagonal
           !byte <HitBehaviourHurt     ;bat UD
           !byte <HitBehaviourHurt     ;bat8
-          !byte <HitBehaviourHurt     ;mummy
+          !byte <HitBehaviourHurtTurn ;mummy
           !byte <HitBehaviourCrumble  ;zombie
           !byte <HitBehaviourVanish   ;bat vanish
+          !byte <HitBehaviourHurt     ;spider
           
 ENEMY_HIT_BEHAVIOUR_TABLE_HI
           !byte >HitBehaviourHurt     ;bat diagonal
           !byte >HitBehaviourHurt     ;bat UD
           !byte >HitBehaviourHurt     ;bat8
-          !byte >HitBehaviourHurt     ;mummy
+          !byte >HitBehaviourHurtTurn ;mummy
           !byte >HitBehaviourCrumble  ;zombie
           !byte >HitBehaviourVanish   ;bat vanish
+          !byte >HitBehaviourHurt     ;spider
           
 IS_TYPE_ENEMY
           !byte 0     ;dummy entry for inactive object
@@ -5257,6 +5623,7 @@ IS_TYPE_ENEMY
           !byte 1     ;mummy
           !byte 1     ;zombie
           !byte 1     ;bat vanish
+          !byte 1     ;spider
           
 TYPE_START_SPRITE
           !byte 0     ;dummy entry for inactive object
@@ -5267,6 +5634,7 @@ TYPE_START_SPRITE
           !byte SPRITE_MUMMY_R_1
           !byte SPRITE_ZOMBIE_WALK_R_1
           !byte SPRITE_BAT_1
+          !byte SPRITE_SPIDER_STAND
           
 TYPE_START_COLOR
           !byte 0
@@ -5277,6 +5645,7 @@ TYPE_START_COLOR
           !byte 1
           !byte 5
           !byte 3
+          !byte 7
           
 TYPE_START_MULTICOLOR
           !byte 0
@@ -5287,6 +5656,7 @@ TYPE_START_MULTICOLOR
           !byte 0
           !byte 1
           !byte 0
+          !byte 1
           
 TYPE_START_HP
           !byte 0
@@ -5297,6 +5667,18 @@ TYPE_START_HP
           !byte 10
           !byte 8
           !byte 3
+          !byte 5
+          
+TYPE_ANNOYED_COLOR
+          !byte 0     ;dummy
+          !byte 10    ;player
+          !byte 2     ;bat diagonal
+          !byte 2     ;bat up down
+          !byte 4     ;bat 8
+          !byte 2     ;mummy
+          !byte 13    ;zombie
+          !byte 2     ;bat vanish
+          !byte 2     ;spider
           
 ;enemy start direction, 2 bits per dir.
 ;        NNNNyyxx
@@ -5323,6 +5705,13 @@ BAT_ANIMATION
           !byte SPRITE_BAT_2
           !byte SPRITE_BAT_3
           !byte SPRITE_BAT_2
+
+SPIDER_ANIMATION_TABLE
+          !byte SPRITE_SPIDER_STAND
+          !byte SPRITE_SPIDER_WALK_1
+          !byte SPRITE_SPIDER_STAND
+          !byte SPRITE_SPIDER_WALK_2
+          
           
 PATH_8_DX
           !byte $86
@@ -5512,6 +5901,7 @@ SCREEN_DATA_TABLE
           !word LEVEL_6
           !word LEVEL_7
           !word LEVEL_8
+          !word LEVEL_9
           !word 0
           
           
@@ -5673,6 +6063,13 @@ LEVEL_8
           !byte LD_OBJECT,23,9,TYPE_BAT_DIAG  
           !byte LD_END
 
+LEVEL_9
+          !byte LD_LINE_H_ALT,1,19,12,96,13
+          !byte LD_LINE_H_ALT,14,19,12,96,13
+          !byte LD_LINE_H_ALT,29,19,12,96,13
+          !byte LD_OBJECT,19,21,TYPE_PLAYER
+          !byte LD_OBJECT,37,18,TYPE_SPIDER
+          !byte LD_END
 
 LEVEL_BORDER_DATA
           !byte LD_LINE_H_ALT,0,0,40,128,9
