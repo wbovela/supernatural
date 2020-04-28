@@ -12,7 +12,21 @@ VIC_SPRITE_X_POS        = $d000
 VIC_SPRITE_Y_POS        = $d001
 VIC_SPRITE_X_EXTEND     = $d010
 VIC_SPRITE_ENABLE       = $d015
+VIC_CONTROL             = $d016
+VIC_MEMORY_CONTROL      = $d018
 VIC_SPRITE_MULTICOLOR   = $d01c
+VIC_SPRITE_MULTICOLOR_1 = $d025
+VIC_SPRITE_MULTICOLOR_2 = $d026
+VIC_SPRITE_COLOR        = $d027
+
+VIC_BORDER_COLOR        = $d020
+VIC_BACKGROUND_COLOR    = $d021
+VIC_CHARSET_MULTICOLOR_1= $d022
+VIC_CHARSET_MULTICOLOR_2= $d023
+
+JOYSTICK_PORT_II        = $dc00
+
+CIA_PRA                 = $dd00
 
 ;placeholder for various temp parameters
 PARAM1                  = $03
@@ -134,6 +148,7 @@ SPRITE_SPIDER_WALK_2          = SPRITE_BASE + 46
 SPRITE_EXPLOSION_1            = SPRITE_BASE + 47
 SPRITE_EXPLOSION_2            = SPRITE_BASE + 48
 SPRITE_EXPLOSION_3            = SPRITE_BASE + 49
+SPRITE_PLAYER_DEAD            = SPRITE_BASE + 50
 
 ;offset from calculated char pos to true sprite pos
 SPRITE_CENTER_OFFSET_X  = 8
@@ -197,12 +212,12 @@ ITEM_COUNT              = 8
           
           ;set charset
           lda #$3c
-          sta $d018
+          sta VIC_MEMORY_CONTROL
 
           ;VIC bank
-          lda $dd00
+          lda CIA_PRA
           and #$fc
-          sta $dd00
+          sta CIA_PRA
 
           ;check last used drive (or set to default)
           lda $ba
@@ -368,7 +383,6 @@ TitleScreenWithoutIRQ
           and #( COLOR_FADE_LENGTH - 1 )
           sta COLOR_FADE_POS
 
-          
           lda #0
           sta PARAM1
 
@@ -411,7 +425,7 @@ TitleScreenWithoutIRQ
           bne .FadeLine
 
           lda #$10
-          bit $dc00
+          bit JOYSTICK_PORT_II
           bne .ButtonNotPressed
           
           ;button pushed
@@ -497,7 +511,6 @@ GameLoop
 
 .GameIsOn
           jsr GameFlowControl
-          jsr DeadControl
           lda LEVEL_START_DELAY
           bne GameLoop
 
@@ -1109,161 +1122,10 @@ text
           
 
 ;------------------------------------------------------------
-;DeadControl   (ingame behaviour when player died)
-;------------------------------------------------------------
-!zone DeadControl
-DeadControl
-          lda SPRITE_ACTIVE
-          beq .PlayerIsDead
-          rts
-          
-.PlayerIsDead
-          lda #$10
-          bit $dc00
-          bne .ButtonNotPressed
-          
-          ;button pushed
-          lda BUTTON_RELEASED
-          bne .Restart
-          rts
-          
-
-.ButtonNotPressed
-          lda #1
-          sta BUTTON_RELEASED
-          rts
-          
-.Restart
-          ;if last life return to title
-          lda PLAYER_LIVES
-          bne .RestartLevel
-          jmp CheckForHighscore
-          
-.RestartLevel          
-          ;remove restart message
-          lda #10
-          sta PARAM1
-          
-          ldy #11
-          lda SCREEN_LINE_OFFSET_TABLE_LO,y
-          sta ZEROPAGE_POINTER_1
-          sta ZEROPAGE_POINTER_2
-          sta ZEROPAGE_POINTER_3
-          sta ZEROPAGE_POINTER_4
-          lda SCREEN_LINE_OFFSET_TABLE_HI,y
-          sta ZEROPAGE_POINTER_1 + 1
-          clc
-          adc #( ( SCREEN_COLOR - SCREEN_CHAR ) & 0xff00 ) >> 8
-          sta ZEROPAGE_POINTER_2 + 1
-          sec
-          sbc #( ( SCREEN_COLOR - SCREEN_BACK_CHAR ) & 0xff00 ) >> 8
-          sta ZEROPAGE_POINTER_3 + 1
-          sec
-          sbc #( ( SCREEN_BACK_CHAR - SCREEN_BACK_COLOR ) & 0xff00 ) >> 8
-          sta ZEROPAGE_POINTER_4 + 1
-          
-          ldy #10
-          
-.ReplaceChar          
-          lda (ZEROPAGE_POINTER_4),y
-          sta (ZEROPAGE_POINTER_2),y
-          lda (ZEROPAGE_POINTER_3),y
-          sta (ZEROPAGE_POINTER_1),y
-          
-          iny
-          cpy #32
-          bne .ReplaceChar
-          
-          ;remove all items
-          ldy #0
-          
-.RemoveItem          
-          lda ITEM_ACTIVE,y
-          cmp #ITEM_NONE
-          beq .RemoveNextItem
-          
-          lda #ITEM_NONE
-          sta ITEM_ACTIVE,y
-          jsr RemoveItemImage
-          
-.RemoveNextItem
-          iny
-          cpy #ITEM_COUNT
-          bne .RemoveItem
-          
-          
-          ;refill shells
-          ldx #0
-.RefillShellImage          
-          lda #2
-          sta SCREEN_COLOR + 23 * 40 + 19,x
-          lda #7
-          sta SCREEN_COLOR + 24 * 40 + 19,x
-          
-          inx
-          cpx PLAYER_SHELLS_MAX
-          bne .RefillShellImage
-
-          lda PLAYER_SHELLS_MAX
-          sta PLAYER_SHELLS
-          
-
-          ;respawn at correct position
-          lda PLAYER_START_POS_X
-          sta PARAM1 
-          lda PLAYER_START_POS_Y
-          sta PARAM2
-
-          ;type
-          lda #TYPE_PLAYER
-          sta PARAM3
-          sta SPRITE_ACTIVE
-          
-          ;PARAM1 and PARAM2 hold x,y already
-          ldx #0
-          jsr CalcSpritePosFromCharPos
-          
-          ;enable sprite
-          lda BIT_TABLE
-          ora VIC_SPRITE_ENABLE
-          sta VIC_SPRITE_ENABLE
-          
-          ;initialise enemy values
-          lda #SPRITE_PLAYER
-          sta SPRITE_POINTER_BASE
-          lda #0
-          sta PLAYER_FAST_RELOAD
-          sta PLAYER_INVINCIBLE
-          sta SPRITE_STATE
-          
-          ;look right per default
-          lda #0
-          sta SPRITE_DIRECTION
-          
-          lda #40
-          sta LEVEL_START_DELAY
-          lda #0
-          sta SPRITE_JUMP_POS
-          sta SPRITE_FALLING
-          
-          lda #<TEXT_GET_READY
-          sta ZEROPAGE_POINTER_1
-          lda #>TEXT_GET_READY
-          sta ZEROPAGE_POINTER_1 + 1
-          lda #15
-          sta PARAM1
-          lda #11
-          sta PARAM2
-          jsr DisplayText
-          rts
-          
-
-CheckCollisions
-;------------------------------------------------------------
 ;check object collisions (enemy vs. player etc.)
 ;x 
 ;------------------------------------------------------------
-
+!zone CheckCollisions
 CheckCollisions
           lda SPRITE_ACTIVE
           bne .PlayerIsAlive
@@ -1289,36 +1151,36 @@ CheckCollisions
           rts
           
 .CheckObject
+          ;is an enemy?
+          tay
+          lda IS_TYPE_ENEMY,y
+          beq .NextObject
+          
           ;only objects with states >= 128 are deadly
+          
           lda SPRITE_STATE,x
           cmp #128
           bcs .NextObject
           
           stx PARAM2
+          ldy PARAM6
           jsr IsEnemyCollidingWithPlayer
           bne .PlayerCollidedWithEnemy
           ldx PARAM2
           jmp .NextObject
           
 .PlayerCollidedWithEnemy          
-          lda #<TEXT_PRESS_FIRE
-          sta ZEROPAGE_POINTER_1
-          lda #>TEXT_PRESS_FIRE
-          sta ZEROPAGE_POINTER_1 + 1
-          lda #10
-          sta PARAM1
-          lda #11
-          sta PARAM2
-          jsr DisplayText
+          ;player killed
+          ldx PARAM6
+          lda #129
+          sta SPRITE_STATE,x
           
-          dec PLAYER_LIVES
-          jsr DisplayLiveNumber
+          lda #SPRITE_PLAYER_DEAD
+          sta SPRITE_POINTER_BASE,x
           
-          ldx #0
-          stx BUTTON_PRESSED
-          stx BUTTON_RELEASED
-          jsr RemoveObject
-
+          lda #0
+          sta SPRITE_MOVE_POS,x
+          
           rts
           
 
@@ -1384,12 +1246,94 @@ IsEnemyCollidingWithPlayer
           lda #0
           rts
           
+          
 ;------------------------------------------------------------
 ;check joystick (player control)
 ;------------------------------------------------------------
 !zone PlayerControl
+.PlayerIsDying
+          inc SPRITE_MOVE_POS,x
+          lda SPRITE_MOVE_POS,x
+          cmp #64
+          beq .PlayerRespawn
+          
+          and #$03
+          bne .NoUpMove
+          jsr MoveSpriteUp
+          
+.NoUpMove          
+          rts
+          
+
+.PlayerRespawn
+          dec PLAYER_LIVES
+          jsr DisplayLiveNumber
+          
+          ;game over?
+          lda PLAYER_LIVES
+          bne .RestartPlayer
+          
+
+          jmp CheckForHighscore
+          
+          
+.RestartPlayer          
+          lda SPRITE_ACTIVE
+          
+          ;refill shells
+          ldy #0
+.RefillShellImage          
+          lda #2
+          sta SCREEN_COLOR + 23 * 40 + 19,y
+          lda #7
+          sta SCREEN_COLOR + 24 * 40 + 19,y
+          
+          iny
+          cpy PLAYER_SHELLS_MAX
+          bne .RefillShellImage
+
+          lda PLAYER_SHELLS_MAX
+          sta PLAYER_SHELLS
+          
+          ;respawn at correct position
+          lda PLAYER_START_POS_X
+          sta PARAM1 
+          lda PLAYER_START_POS_Y
+          sta PARAM2
+
+          ;PARAM1 and PARAM2 hold x,y already
+          jsr CalcSpritePosFromCharPos
+          
+          ;enable sprite
+          lda BIT_TABLE
+          ora VIC_SPRITE_ENABLE
+          sta VIC_SPRITE_ENABLE
+          
+          ;initialise enemy values
+          lda #SPRITE_PLAYER
+          sta SPRITE_POINTER_BASE
+          lda #0
+          sta PLAYER_FAST_RELOAD
+          sta PLAYER_INVINCIBLE
+          sta SPRITE_STATE
+          
+          ;look right per default
+          lda #0
+          sta SPRITE_DIRECTION
+          
+          lda #0
+          sta SPRITE_JUMP_POS
+          sta SPRITE_FALLING
+          rts
+
 PlayerControl
-          lda PLAYER_INVINCIBLE
+          lda SPRITE_STATE,x
+          cmp #129
+          bne .NotDying
+          jmp .PlayerIsDying
+          
+.NotDying          
+          lda PLAYER_INVINCIBLE,x
           beq .NotInvincible
           
           ;count down invincibility
