@@ -42,32 +42,6 @@ ZEROPAGE_POINTER_2      = $19
 ZEROPAGE_POINTER_3      = $21
 ZEROPAGE_POINTER_4      = $23
 
-KERNAL_GETIN            = $ffe4
-KERNAL_SETMSG           = $ff90
-KERNAL_SETLFS           = $ffba
-KERNAL_SETNAM           = $ffbd
-KERNAL_LOAD             = $ffd5
-
-VIC_SPRITE_X_POS        = $d000
-VIC_SPRITE_Y_POS        = $d001
-VIC_SPRITE_X_EXTEND     = $d010
-VIC_SPRITE_ENABLE       = $d015
-VIC_CONTROL             = $d016
-VIC_MEMORY_CONTROL      = $d018
-VIC_SPRITE_MULTICOLOR   = $d01c
-VIC_SPRITE_MULTICOLOR_1 = $d025
-VIC_SPRITE_MULTICOLOR_2 = $d026
-VIC_SPRITE_COLOR        = $d027
-
-VIC_BORDER_COLOR        = $d020
-VIC_BACKGROUND_COLOR    = $d021
-VIC_CHARSET_MULTICOLOR_1= $d022
-VIC_CHARSET_MULTICOLOR_2= $d023
-
-JOYSTICK_PORT_II        = $dc00
-
-CIA_PRA                 = $dd00
-
 ;address of the screen buffer
 SCREEN_CHAR             = $CC00
 
@@ -85,7 +59,7 @@ SCREEN_BACK_COLOR       = $C400
 SPRITE_POINTER_BASE     = SCREEN_CHAR + 1016
 
 ;number of sprites divided by four
-NUMBER_OF_SPRITES_DIV_4       = 13
+NUMBER_OF_SPRITES_DIV_4       = 17
 
 ;sprite number constant
 SPRITE_BASE                   = 64
@@ -112,20 +86,16 @@ SPRITE_PLAYER_JUMP_RECOIL_R   = SPRITE_BASE + 14
 SPRITE_PLAYER_JUMP_RECOIL_L   = SPRITE_BASE + 15
 SPRITE_PLAYER_FALL_RECOIL_R   = SPRITE_BASE + 20
 SPRITE_PLAYER_FALL_RECOIL_L   = SPRITE_BASE + 21
-
 SPRITE_BAT_2                  = SPRITE_BASE + 22
 SPRITE_BAT_3                  = SPRITE_BASE + 23
-
 SPRITE_MUMMY_R_1              = SPRITE_BASE + 24
 SPRITE_MUMMY_L_1              = SPRITE_BASE + 25
 SPRITE_MUMMY_R_2              = SPRITE_BASE + 26
 SPRITE_MUMMY_L_2              = SPRITE_BASE + 27
 SPRITE_MUMMY_ATTACK_R         = SPRITE_BASE + 28
 SPRITE_MUMMY_ATTACK_L         = SPRITE_BASE + 29
-
 SPRITE_PLAYER_RELOAD_R        = SPRITE_BASE + 30
 SPRITE_PLAYER_RELOAD_L        = SPRITE_BASE + 31
-
 SPRITE_ZOMBIE_WALK_R_1        = SPRITE_BASE + 32
 SPRITE_ZOMBIE_WALK_L_1        = SPRITE_BASE + 33
 SPRITE_ZOMBIE_WALK_R_2        = SPRITE_BASE + 34
@@ -134,21 +104,33 @@ SPRITE_ZOMBIE_COLLAPSE_R_1    = SPRITE_BASE + 36
 SPRITE_ZOMBIE_COLLAPSE_L_1    = SPRITE_BASE + 37
 SPRITE_ZOMBIE_COLLAPSE_R_2    = SPRITE_BASE + 38
 SPRITE_ZOMBIE_COLLAPSE_L_2    = SPRITE_BASE + 39
-
 SPRITE_INVISIBLE              = SPRITE_BASE + 40
 SPRITE_BAT_VANISH             = SPRITE_BASE + 41
-
 SPRITE_ZOMBIE_JUMP_R          = SPRITE_BASE + 42
 SPRITE_ZOMBIE_JUMP_L          = SPRITE_BASE + 43
-
 SPRITE_SPIDER_STAND           = SPRITE_BASE + 44
 SPRITE_SPIDER_WALK_1          = SPRITE_BASE + 45
 SPRITE_SPIDER_WALK_2          = SPRITE_BASE + 46
-
 SPRITE_EXPLOSION_1            = SPRITE_BASE + 47
 SPRITE_EXPLOSION_2            = SPRITE_BASE + 48
 SPRITE_EXPLOSION_3            = SPRITE_BASE + 49
 SPRITE_PLAYER_DEAD            = SPRITE_BASE + 50
+SPRITE_PLAYER_SAM_STAND_R     = SPRITE_BASE + 51
+SPRITE_PLAYER_SAM_STAND_L     = SPRITE_BASE + 52
+SPRITE_PLAYER_SAM_WALK_R_1    = SPRITE_BASE + 55
+SPRITE_PLAYER_SAM_WALK_L_1    = SPRITE_BASE + 56
+SPRITE_PLAYER_SAM_WALK_R_2    = SPRITE_BASE + 57
+SPRITE_PLAYER_SAM_WALK_L_2    = SPRITE_BASE + 58
+SPRITE_PLAYER_SAM_WALK_R_3    = SPRITE_BASE + 59
+SPRITE_PLAYER_SAM_WALK_L_3    = SPRITE_BASE + 60
+SPRITE_PLAYER_SAM_WALK_R_4    = SPRITE_BASE + 61
+SPRITE_PLAYER_SAM_WALK_L_4    = SPRITE_BASE + 62
+SPRITE_PLAYER_SAM_JUMP_R      = SPRITE_BASE + 55
+SPRITE_PLAYER_SAM_JUMP_L      = SPRITE_BASE + 56
+SPRITE_PLAYER_SAM_FALL_R      = SPRITE_BASE + 61
+SPRITE_PLAYER_SAM_FALL_L      = SPRITE_BASE + 62
+SPRITE_PLAYER_SAM_POWER_R     = SPRITE_BASE + 63
+SPRITE_PLAYER_SAM_POWER_L     = SPRITE_BASE + 64
 
 ;offset from calculated char pos to true sprite pos
 SPRITE_CENTER_OFFSET_X  = 8
@@ -177,7 +159,7 @@ LD_LINE_V_ALT           = 6     ;data contains x,y,height,char,color
 LD_QUAD                 = 7     ;data contains x,y,quad_id
 
 ;object type constants
-TYPE_PLAYER             = 1
+TYPE_PLAYER_DEAN        = 1
 TYPE_BAT_DIAG           = 2
 TYPE_BAT_UD             = 3
 TYPE_BAT_8              = 4
@@ -186,6 +168,7 @@ TYPE_ZOMBIE             = 6
 TYPE_BAT_VANISH         = 7
 TYPE_SPIDER             = 8
 TYPE_EXPLOSION          = 9
+TYPE_PLAYER_SAM         = 10
 
 OBJECT_HEIGHT           = 8 * 2
 
@@ -198,6 +181,11 @@ ITEM_NONE               = 255
 
 ;number of possible items
 ITEM_COUNT              = 8
+
+;game mode types
+GT_SINGLE_PLAYER_DEAN   = 0
+GT_SINGLE_PLAYER_SAM    = 1
+GT_COOP                 = 2
 
 ;this creates a basic start
 *=$0801
@@ -328,6 +316,17 @@ TitleScreenWithoutIRQ
           lda #23
           sta PARAM2
           jsr DisplayText
+
+          ldx GAME_MODE				; get the game mode into x
+          lda TEXT_GAME_MODE_LO,x		; load address for the appropriate text 
+          sta ZEROPAGE_POINTER_1
+          lda TEXT_GAME_MODE_HI,x
+          sta ZEROPAGE_POINTER_1 + 1
+          lda #11
+          sta PARAM1
+          lda #21
+          sta PARAM2
+          jsr DisplayText			
           
           ;display high scores
           ;x,y pos of name
@@ -382,7 +381,7 @@ TitleScreenWithoutIRQ
           lda COLOR_FADE_POS
           and #( COLOR_FADE_LENGTH - 1 )
           sta COLOR_FADE_POS
-
+          
           lda #0
           sta PARAM1
 
@@ -424,6 +423,54 @@ TitleScreenWithoutIRQ
           cmp #8
           bne .FadeLine
 
+;if (Joystick2Read() !== up) {
+;	if (up_released) {
+;	   gamemode = mod(++gamemode, 3)
+;	   printGameMode(gamemode)
+;	   up_released = false
+;	} else {
+;	   up_released = up_released
+;	}
+;} else {
+;	up_released = true
+;}		
+		
+          lda #$01				; bit #0 is set when nothing happens
+          bit JOYSTICK_PORT_II	; bit does a bit#0 AND $01 and sets Z flag. 0&0=0 0&1=0 1&0=0 1&1=1
+          bne .NotUpPressed		; 1 and 1 = 1, Z clear so jump and set UP_RELEASED. 
+							; 	(bne only jumps when Z is set.)
+          					; 0 and 1 = 0, so up pressed
+          lda UP_RELEASED		; now check UP_RELEASED (was just set to 1)
+          beq .UpPressed			; if UP_RELEASED===false, jump away
+          					
+          inc GAME_MODE			; now change game mode
+          lda GAME_MODE			; make sure we don't wrap over 3 modes
+          cmp #3
+          bne .NoGameModeWrap
+          
+          lda #0				
+          sta GAME_MODE
+.NoGameModeWrap
+          ;redisplay game mode
+          ldx GAME_MODE				; print the game mode text
+          lda TEXT_GAME_MODE_LO,x
+          sta ZEROPAGE_POINTER_1
+          lda TEXT_GAME_MODE_HI,x
+          sta ZEROPAGE_POINTER_1 + 1
+          lda #11
+          sta PARAM1
+          lda #21
+          sta PARAM2
+          jsr DisplayText
+          
+          lda #0					; make sure UP_RELEASED = 0 
+          jmp .UpPressed
+
+.NotUpPressed          
+          lda #1
+.UpPressed          
+          sta UP_RELEASED
+
           lda #$10
           bit JOYSTICK_PORT_II
           bne .ButtonNotPressed
@@ -448,6 +495,7 @@ TitleScreenWithoutIRQ
           ;game start values
           lda #3
           sta PLAYER_LIVES
+          sta PLAYER_LIVES + 1
           
           ;setup level
           jsr StartLevel
@@ -465,16 +513,60 @@ TitleScreenWithoutIRQ
           
           jsr DisplayGetReady
           
-          lda #<TEXT_DISPLAY
+          ;score display according to game mode
+          lda GAME_MODE
+          cmp #GT_SINGLE_PLAYER_DEAN
+          beq .DeanOnly
+          cmp #GT_SINGLE_PLAYER_SAM
+          beq .SamOnly
+
+          lda #<TEXT_DISPLAY_DEAN_AND_SAM
           sta ZEROPAGE_POINTER_1
-          lda #>TEXT_DISPLAY
+          lda #>TEXT_DISPLAY_DEAN_AND_SAM
           sta ZEROPAGE_POINTER_1 + 1
+          jmp .DisplayDisplay
+
+.DeanOnly        
+          lda #0
+          sta PLAYER_LIVES
+
+          lda #<TEXT_DISPLAY_DEAN_ONLY
+          sta ZEROPAGE_POINTER_1
+          lda #>TEXT_DISPLAY_DEAN_ONLY
+          sta ZEROPAGE_POINTER_1 + 1
+          jmp .DisplayDisplay
+
+.SamOnly        
+          lda #0
+          sta PLAYER_LIVES + 1
+          
+          lda #<TEXT_DISPLAY_SAM_ONLY
+          sta ZEROPAGE_POINTER_1
+          lda #>TEXT_DISPLAY_SAM_ONLY
+          sta ZEROPAGE_POINTER_1 + 1
+          jmp .DisplayDisplay
+
+.DisplayDisplay
           lda #0
           sta PARAM1
           lda #23
           sta PARAM2
           jsr DisplayText
           jsr DisplayLevelNumber
+          
+          ;settings per game mode
+          ;default ports
+          lda #0						; set player 0 to port 0 and player 1 to 1
+          sta PLAYER_JOYSTICK_PORT			; 0 will indicate port 2, 1 will indicate port 1 :)
+          lda #1
+          sta PLAYER_JOYSTICK_PORT + 1
+          
+          lda GAME_MODE					; but if sam is the only player, set him to 0
+          cmp #GT_SINGLE_PLAYER_SAM
+          bne .NoPortChange
+          lda #0
+          sta PLAYER_JOYSTICK_PORT + 1
+.NoPortChange          
           
           ;full shells
           lda #2
@@ -515,11 +607,26 @@ GameLoop
           bne GameLoop
 
           jsr ObjectControl
-          jsr CheckCollisions
-
-          ;lda #0
-          ;sta VIC_BORDER_COLOR
           
+          ;check for Dean
+          lda GAME_MODE					; make sure we don't check for collissions
+          cmp #GT_SINGLE_PLAYER_SAM		; for a player that doesn't exist
+          beq .NoCollisionCheckForDean
+          
+          ldx #0						; note that CheckCollisions now has a parameter x
+          jsr CheckCollisions				; indicating the player number to check for
+          
+.NoCollisionCheckForDean          
+          ;check for Sam needed?
+          lda GAME_MODE
+          cmp #GT_SINGLE_PLAYER_DEAN
+          beq .NoCollisionCheckForSam
+
+          ;check for Sam
+          ldx #1
+          jsr CheckCollisions
+          
+.NoCollisionCheckForSam
           jmp GameLoop          
           
 .RemoveGetReady          
@@ -791,7 +898,13 @@ StartLevel
           sta NUMBER_ENEMIES_ALIVE
           sta LEVEL_DONE_DELAY
           sta SPRITE_POS_X_EXTEND
-          sta PLAYER_STAND_STILL_TIME
+          sta PLAYER_STAND_STILL_TIME			; this variable is named confusingly
+          sta PLAYER_STAND_STILL_TIME + 1		; it doesn't store a time. more like a count.
+          sta PLAYER_FAST_RELOAD
+          sta PLAYER_INVINCIBLE
+          sta PLAYER_INVINCIBLE + 1
+          sta PLAYER_FIRE_PRESSED_TIME + 1		; same here, no time but a count
+          sta SPRITE_HELD					; only one sprite can be held at a time, so a sprite number
           
           ;reset all items
           ldx #0
@@ -1123,22 +1236,27 @@ text
 
 ;------------------------------------------------------------
 ;check object collisions (enemy vs. player etc.)
-;x 
+;x is sprite number. 
 ;------------------------------------------------------------
 !zone CheckCollisions
 CheckCollisions
-          lda SPRITE_ACTIVE
-          bne .PlayerIsAlive
+          lda SPRITE_ACTIVE,x		; this used to not have the x index, but now we have to 
+          bne .PlayerIsAlive		; check more than 1 player. x can be 0 or 1 for players.
           rts          
           
 .PlayerIsAlive          
-          lda SPRITE_STATE
+          lda SPRITE_STATE,x
           cmp #128
           bmi .IsVulnerable
           rts          
           
 .IsVulnerable          
-          ldx #1
+          stx PARAM6
+          
+          ;start with sprite 0 (Sam usually is at index 1)
+          ldx #0				; this makes no sense here. Sprite #0 is NEVER an enemy. 
+							; Sprite #1 might be an enemy if we're in coop mode so it makes sense
+							; to start at sprite #1.
           
 .CollisionLoop          
           lda SPRITE_ACTIVE,x
@@ -1181,12 +1299,22 @@ CheckCollisions
           lda #0
           sta SPRITE_MOVE_POS,x
           
+          lda SPRITE_ACTIVE,x
+          cmp #TYPE_PLAYER_SAM			; if the player was killed AND he was of type SAM
+          bne .PlayerWasDean				; we need to reset some things specific to him (SPRITE_HELD)
+          
+          ;reset Sam specific variables
+          lda #0
+          sta SPRITE_HELD
+          
+.PlayerWasDean          
           rts
           
 
 ;------------------------------------------------------------
-;check object collision with player (object 0)
+;check object collision with player (object in y)
 ;x = enemy index
+;y = player index
 ;return a = 1 when colliding, a = 0 when not
 ;------------------------------------------------------------
 
@@ -1217,17 +1345,19 @@ IsEnemyCollidingWithPlayer
           lda SPRITE_POS_Y,x
           sec
           sbc #( OBJECT_HEIGHT )      ;offset to bottom
-          cmp SPRITE_POS_Y
+          cmp SPRITE_POS_Y,y
           bcs .NotTouching
           clc
           adc #( OBJECT_HEIGHT + OBJECT_HEIGHT - 1 )
-          cmp SPRITE_POS_Y
+          cmp SPRITE_POS_Y,y
           bcc .NotTouching
           
           ;X = Index in enemy-table
           jsr .CalculateSimpleXPos
           sta PARAM1
-          ldx #0
+          ;vs. player X				; what? this used to be LDX #$00 but now Y holds the 
+          tya						; player number so we transfer Y to X via A (only way possible)
+          tax
           jsr .CalculateSimpleXPos
           
           sec
@@ -1250,7 +1380,7 @@ IsEnemyCollidingWithPlayer
 ;------------------------------------------------------------
 ;check joystick (player control)
 ;------------------------------------------------------------
-!zone PlayerControl
+!zone PlayerControl					; this is not the entry point for this function
 .PlayerIsDying
           inc SPRITE_MOVE_POS,x
           lda SPRITE_MOVE_POS,x
@@ -1266,24 +1396,33 @@ IsEnemyCollidingWithPlayer
           
 
 .PlayerRespawn
-          dec PLAYER_LIVES
+          dec PLAYER_LIVES,x
           jsr DisplayLiveNumber
           
           ;game over?
-          lda PLAYER_LIVES
+          lda PLAYER_LIVES,x
           bne .RestartPlayer
           
-
-          jmp CheckForHighscore
+          ;is other player alive?
+          lda PLAYER_LIVES			; simply add both player lives counters and
+          clc						; check for zero. Be sure to clear the carry before adding
+          adc PLAYER_LIVES + 1
+          bne .OtherPlayerStillAlive
+          jmp CheckForHighscore		; this is game over
           
+.OtherPlayerStillAlive
+          jsr RemoveObject			; otherwise just remove the deceased player
+          rts
           
 .RestartPlayer          
-          lda SPRITE_ACTIVE
+          lda SPRITE_ACTIVE,x
+          cmp #TYPE_PLAYER_SAM
+          bne .PlayerIsNotDean
           
           ;refill shells
           ldy #0
-.RefillShellImage          
-          lda #2
+.RefillShellImage          					; Sam doesn't use bullets so we can skip this
+          lda #2							; in case of sam.
           sta SCREEN_COLOR + 23 * 40 + 19,y
           lda #7
           sta SCREEN_COLOR + 24 * 40 + 19,y
@@ -1295,56 +1434,58 @@ IsEnemyCollidingWithPlayer
           lda PLAYER_SHELLS_MAX
           sta PLAYER_SHELLS
           
+.PlayerIsNotDean
           ;respawn at correct position
-          lda PLAYER_START_POS_X
+          lda PLAYER_START_POS_X,x				; for both players, get their starting positions
           sta PARAM1 
-          lda PLAYER_START_POS_Y
+          lda PLAYER_START_POS_Y,x
           sta PARAM2
 
           ;PARAM1 and PARAM2 hold x,y already
-          jsr CalcSpritePosFromCharPos
+          jsr CalcSpritePosFromCharPos			; calculate their sprite coordinates
           
           ;enable sprite
-          lda BIT_TABLE
+          lda BIT_TABLE,x					; enable the correct one
           ora VIC_SPRITE_ENABLE
           sta VIC_SPRITE_ENABLE
           
-          ;initialise enemy values
-          lda #SPRITE_PLAYER
-          sta SPRITE_POINTER_BASE
-          lda #0
-          sta PLAYER_FAST_RELOAD
-          sta PLAYER_INVINCIBLE
-          sta SPRITE_STATE
+          ;initialise enemy values				; weird comment here (enemy), we're in player control
+          lda #SPRITE_PLAYER					; apparently each player looks like Dean in the init
+          sta SPRITE_POINTER_BASE,x
+          lda #0							; reset player related values
+          sta PLAYER_FAST_RELOAD,x
+          sta PLAYER_INVINCIBLE,x
+          sta SPRITE_STATE,x
+          sta PLAYER_FIRE_PRESSED_TIME,x
           
           ;look right per default
           lda #0
-          sta SPRITE_DIRECTION
+          sta SPRITE_DIRECTION,x
           
           lda #0
-          sta SPRITE_JUMP_POS
-          sta SPRITE_FALLING
+          sta SPRITE_JUMP_POS,x
+          sta SPRITE_FALLING,x
           rts
 
-PlayerControl
-          lda SPRITE_STATE,x
-          cmp #129
-          bne .NotDying
+PlayerControl							; note that this function's entry point is here
+          lda SPRITE_STATE,x				; and not at the top. This is due to branching limitations
+          cmp #129						; of the 6510: 128 bytes forward and 127 bytes back.
+          bne .NotDying					; start by testing if we're dying (floating up animation)
           jmp .PlayerIsDying
           
-.NotDying          
-          lda PLAYER_INVINCIBLE,x
+.NotDying          						; we're still alive
+          lda PLAYER_INVINCIBLE,x			; check if we're invincible
           beq .NotInvincible
           
           ;count down invincibility
-          inc VIC_SPRITE_COLOR
-          dec PLAYER_INVINCIBLE
-          bne .NotInvincible
+          inc VIC_SPRITE_COLOR,x			; if we are we flash
+          dec PLAYER_INVINCIBLE,x			; decrease the counter for invincibility
+          bne .NotInvincible				; if it's 0 we're done being invincible
 
-          lda #0
-          sta SPRITE_STATE
+          lda #0						; restore sprite state and colour
+          sta SPRITE_STATE,x
           lda #10
-          sta VIC_SPRITE_COLOR
+          sta VIC_SPRITE_COLOR,x
           
 .NotInvincible          
           ;check if the player collected an item
@@ -1355,17 +1496,17 @@ PlayerControl
           beq .NextItem
           
           lda ITEM_POS_X,y
-          cmp SPRITE_CHAR_POS_X
+          cmp SPRITE_CHAR_POS_X,x
           beq .MatchX
 
           clc
           adc #1
-          cmp SPRITE_CHAR_POS_X
+          cmp SPRITE_CHAR_POS_X,x
           beq .MatchX
 
           sec
           sbc #2
-          cmp SPRITE_CHAR_POS_X
+          cmp SPRITE_CHAR_POS_X,x
           beq .MatchX
           
           jmp .NextItem
@@ -1374,7 +1515,7 @@ PlayerControl
           lda ITEM_POS_Y,y
           clc
           adc #1
-          cmp SPRITE_CHAR_POS_Y
+          cmp SPRITE_CHAR_POS_Y,x
           bne .NextItem
           
           ;pick item!
@@ -1389,28 +1530,29 @@ PlayerControl
 .LastItemReached
 
           ;check if player moved
-          lda $dc00
+          ldy PLAYER_JOYSTICK_PORT,x		; load y with the port index (0 or 1)
+          lda JOYSTICK_PORT_II,y			; $dc00 is port #2, $dc01 is port #1. 
           and #$1f
           cmp #$1f
           bne .PlayerMoved
           
           ;don't reload while recoil
-          lda PLAYER_SHOT_PAUSE
+          lda PLAYER_SHOT_PAUSE,x
           bne .PlayerMoved
-          
-          lda PLAYER_FAST_RELOAD
+
+          lda PLAYER_FAST_RELOAD,x
           beq .NoFastReload
-          dec PLAYER_FAST_RELOAD
-          inc PLAYER_STAND_STILL_TIME
+          dec PLAYER_FAST_RELOAD,x
+          inc PLAYER_STAND_STILL_TIME,x
 .NoFastReload          
-          inc PLAYER_STAND_STILL_TIME
-          lda PLAYER_STAND_STILL_TIME
+          inc PLAYER_STAND_STILL_TIME,x
+          lda PLAYER_STAND_STILL_TIME,x
           cmp #40
           bmi .HandleFire
           
           ;reload
           lda #1
-          sta PLAYER_STAND_STILL_TIME
+          sta PLAYER_STAND_STILL_TIME,x
           
           ;already fully loaded?
           lda PLAYER_SHELLS
@@ -1429,111 +1571,199 @@ PlayerControl
           
 .PlayerMoved
           lda #0
-          sta PLAYER_STAND_STILL_TIME
+          sta PLAYER_STAND_STILL_TIME,x
           
 .HandleFire          
+          cpx #1						; if x=1 we're SAM and we handle his firing
+          beq .FireSam
+          
           ;handle shooting/shoot pause
-          lda PLAYER_SHOT_PAUSE
+          lda PLAYER_SHOT_PAUSE,x			; remember how easy Dean was?
           bne .CannotShoot
           
           lda PLAYER_SHELLS
           beq .FireDone
                     
-          lda #$10
-          bit $dc00
+          ldy PLAYER_JOYSTICK_PORT,x
+          lda JOYSTICK_PORT_II,y
+          and #$10
           bne .NotFirePushed
           
           jsr FireShot
           jmp .FireDone
+
+.FireSam
+          ldy PLAYER_JOYSTICK_PORT,x		; check the correct port for if fire is pushed
+          lda JOYSTICK_PORT_II,y			; this happens every frame!
+          and #$10
+          bne .SamNotFirePushed			; if not, just reset some values and rts
+          
+          lda #1						; we use PLAYER_FIRE_PRESSED_TIME as a toggle
+          sta PLAYER_FIRE_PRESSED_TIME,x	; not a counter
+          
+          stx PARAM6					; store the sprite number
+          
+          jsr SamUseForce				; while pressed, sam uses his force and holds enemies
+          beq .NoEnemyHeld				; no enemy held is basically .FireDone 
+          
+          ;Sam needs to keep pressed
+          inc PLAYER_SHOT_PAUSE,x			; we use PLAYER_SHOT_PAUSE here do measure if sam	
+          							; has pressed fire for 40 cycles
+          lda PLAYER_SHOT_PAUSE,x
+          cmp #40
+          beq .EnemyHurtBySam				; if so, the enemy was actually hurt
+          
+          ldy SPRITE_HELD				; otherwise set the enemy's sprite colour to red 
+          dey							; notice we have to adjust the table index here..boo!
+          lda #2
+          sta VIC_SPRITE_COLOR,y
+          
+.NoEnemyHeld          
+.EnemyWasHurt    
+          ;restore sprite index
+          ldx PARAM6
+          jmp .NotFirePushed
+          
+.EnemyHurtBySam						; when the enemy was hurt by sam, reset the 
+          lda #0						; PLAYER_SHOT_PAUSE counter for sam
+          sta PLAYER_SHOT_PAUSE,x
+          
+          ldx SPRITE_HELD				; reset the enemy sprite colour
+          dex
+          
+          lda #0
+          sta VIC_SPRITE_COLOR,x
+          
+          dec SPRITE_HP,x				; and decrease its HP
+          bne .EnemyWasHurt				; not dead yet, continue to an rts
+          
+.EnemyKilledBySam          
+          lda #5						; we killed the enemy, so increase score by 5
+          jsr IncreaseScore
+          
+          ldx SPRITE_HELD				; get the enemy sprite number and kill it
+          dex
+
+          jsr KillEnemy
+          
+          ldx PARAM6					; set sprite held back to 0 and rts out
+          lda #0
+          sta SPRITE_HELD
+          jmp .NotFirePushed
+          
+          
+.SamNotFirePushed
+          lda #0
+          sta SPRITE_HELD
+          sta PLAYER_SHOT_PAUSE,x
+          sta PLAYER_FIRE_PRESSED_TIME,x
+          jmp .NotFirePushed
 
 .CannotShoot
           dec PLAYER_SHOT_PAUSE
 
 .FireDone
 .NotFirePushed
-          lda SPRITE_JUMP_POS
+          lda SPRITE_JUMP_POS,x
           beq .NotJumping
           jmp .PlayerIsJumping
 
 .NotJumping
-          ldx #0
           jsr UpdateSpriteFall
           bne .NotUpPressed
           
-.NotDownPressed          
-          lda #$01
-          bit $dc00
+          ldy PLAYER_JOYSTICK_PORT,x
+          lda JOYSTICK_PORT_II,y
+          and #$01
           bne .NotUpPressed
           
           jmp .PlayerIsJumping
           
 .NotUpPressed          
 .JumpStopped
-.JumpComplete
-          lda #$04
-          bit $dc00
+.JumpComplete								; this is where all the moving is done...
+          cpx #1							; when moving sam we have to check if he's 
+          bne .PlayerIsDean					; using the force
+          
+          ;if Sam is powering up he cannot move
+          lda PLAYER_FIRE_PRESSED_TIME,x		; so if this toggle is not on, continue
+          beq .SamIsNotPowering
+          
+          lda #SPRITE_PLAYER_SAM_POWER_R		; otherwise just reset his sprite and direction
+          clc								; and rts out
+          adc SPRITE_DIRECTION + 1
+          sta SPRITE_POINTER_BASE + 1
+          rts
+          
+.SamIsNotPowering
+.PlayerIsDean          
+          ldy PLAYER_JOYSTICK_PORT,x
+          lda JOYSTICK_PORT_II,y
+          and #$04
           bne .NotLeftPressed
           jsr PlayerMoveLeft
           jsr PlayerMoveLeft
           
           ;animate player
-          lda SPRITE_FALLING
+          lda SPRITE_FALLING,x
           bne .NoAnimLNeeded
-          lda SPRITE_JUMP_POS
+          lda SPRITE_JUMP_POS,x
           bne .NoAnimLNeeded
           
-          inc SPRITE_ANIM_DELAY
-          lda SPRITE_ANIM_DELAY
+          inc SPRITE_ANIM_DELAY,x
+          lda SPRITE_ANIM_DELAY,x
           cmp #8
           bne .NoAnimLNeeded
           
           lda #0
-          sta SPRITE_ANIM_DELAY
+          sta SPRITE_ANIM_DELAY,x
           
-          inc SPRITE_ANIM_POS
-          lda SPRITE_ANIM_POS
+          inc SPRITE_ANIM_POS,x
+          lda SPRITE_ANIM_POS,x
           and #$03
-          sta SPRITE_ANIM_POS
+          sta SPRITE_ANIM_POS,x
           
 .NoAnimLNeeded
 .NotLeftPressed
-          lda #$08
-          bit $dc00
+          ldy PLAYER_JOYSTICK_PORT,x
+          lda JOYSTICK_PORT_II,y
+          and #$08
           bne .NotRightPressed
           jsr PlayerMoveRight
           jsr PlayerMoveRight
 
           ;animate player
-          lda SPRITE_FALLING
+          lda SPRITE_FALLING,x
           bne .NoAnimRNeeded
-          lda SPRITE_JUMP_POS
+          lda SPRITE_JUMP_POS,x
           bne .NoAnimRNeeded
           
-          inc SPRITE_ANIM_DELAY
-          lda SPRITE_ANIM_DELAY
+          inc SPRITE_ANIM_DELAY,x
+          lda SPRITE_ANIM_DELAY,x
           cmp #8
           bne .NoAnimRNeeded
           
           lda #0
-          sta SPRITE_ANIM_DELAY
+          sta SPRITE_ANIM_DELAY,x
           
-          inc SPRITE_ANIM_POS
-          lda SPRITE_ANIM_POS
+          inc SPRITE_ANIM_POS,x
+          lda SPRITE_ANIM_POS,x
           and #$03
-          sta SPRITE_ANIM_POS
+          sta SPRITE_ANIM_POS,x
 
 .NoAnimRNeeded          
 .NotRightPressed
-          ;restore x
-          ldx #0
-          
           ;update player animation
-          lda PLAYER_STAND_STILL_TIME
+          lda PLAYER_STAND_STILL_TIME,x
           beq .PlayerMoving
           cmp #10
           bmi .NotReloading
           cmp #30
           bpl .NotReloading
+          
+          ;don't show reload sprites for Sam
+          cpx #1							; only Dean gets the reloading animation
+          beq .NotReloading					; skip over it for Sam
           
           ;set reload anim
           lda PLAYER_SHELLS
@@ -1542,95 +1772,103 @@ PlayerControl
           
           lda #SPRITE_PLAYER_RELOAD_R
           clc
-          adc SPRITE_DIRECTION
-          sta SPRITE_POINTER_BASE
+          adc SPRITE_DIRECTION,x
+          adc PLAYER_SPRITE_BASE,x
+          sta SPRITE_POINTER_BASE,x
           rts
           
 .NotReloading
           lda #SPRITE_PLAYER_STAND_R
           clc
-          adc SPRITE_DIRECTION
-          sta SPRITE_POINTER_BASE
+          adc SPRITE_DIRECTION,x
+          adc PLAYER_SPRITE_BASE,x
+          sta SPRITE_POINTER_BASE,x
           rts
           
 .PlayerMoving
-          lda SPRITE_FALLING
+          lda SPRITE_FALLING,x
           bne .AnimFalling
 
-          lda SPRITE_JUMP_POS
+          lda SPRITE_JUMP_POS,x
           bne .AnimJumping
           
           ;is player shooting?
-          lda PLAYER_SHOT_PAUSE
+          lda PLAYER_SHOT_PAUSE,x
           beq .AnimNoRecoil
 
           ;recoil anim          
-          lda SPRITE_ANIM_POS
+          lda SPRITE_ANIM_POS,x
           asl
           clc
-          adc SPRITE_DIRECTION
+          adc SPRITE_DIRECTION,x
           adc #SPRITE_PLAYER_WALK_R_1
           adc #8
-          sta SPRITE_POINTER_BASE
+          sta SPRITE_POINTER_BASE,x
           
 .NoUpdateNeeded          
           rts
           
 .AnimNoRecoil          
-          
-          lda SPRITE_ANIM_POS
+          lda SPRITE_ANIM_POS,x
           asl
           clc
-          adc SPRITE_DIRECTION
+          adc SPRITE_DIRECTION,x
           adc #SPRITE_PLAYER_WALK_R_1
-          sta SPRITE_POINTER_BASE
+          adc PLAYER_SPRITE_BASE,x
+          sta SPRITE_POINTER_BASE,x
           rts
           
 .AnimFalling
-          lda PLAYER_SHOT_PAUSE
+          lda PLAYER_SHOT_PAUSE,x
           bne .AnimFallingNoRecoil
 
           lda #SPRITE_PLAYER_FALL_R
           clc
-          adc SPRITE_DIRECTION
-          sta SPRITE_POINTER_BASE
+          adc SPRITE_DIRECTION,x
+          adc PLAYER_SPRITE_BASE,x
+          sta SPRITE_POINTER_BASE,x
           rts
           
 .AnimFallingNoRecoil          
           lda #SPRITE_PLAYER_FALL_RECOIL_R
           clc
-          adc SPRITE_DIRECTION
-          sta SPRITE_POINTER_BASE
+          adc SPRITE_DIRECTION,x
+          adc PLAYER_SPRITE_BASE,x
+          sta SPRITE_POINTER_BASE,x
           rts
           
 .AnimJumping          
-          lda PLAYER_SHOT_PAUSE
+          lda PLAYER_SHOT_PAUSE,x
           bne .AnimJumpingNoRecoil
 
           lda #SPRITE_PLAYER_JUMP_R
           clc
-          adc SPRITE_DIRECTION
-          sta SPRITE_POINTER_BASE
+          adc SPRITE_DIRECTION,x
+          adc PLAYER_SPRITE_BASE,x
+          sta SPRITE_POINTER_BASE,x
           rts
           
 .AnimJumpingNoRecoil          
           lda #SPRITE_PLAYER_JUMP_RECOIL_R
           clc
-          adc SPRITE_DIRECTION
-          sta SPRITE_POINTER_BASE
+          adc SPRITE_DIRECTION,x
+          adc PLAYER_SPRITE_BASE,x
+          sta SPRITE_POINTER_BASE,x
           rts
 
 .PlayerIsJumping
-          ldx #0
           jsr UpdateSpriteJump
           jmp .JumpComplete
 
 ;------------------------------------------------------------
 ;pick item = remove item and apply effect
+;X = player index
 ;Y = item index
 ;------------------------------------------------------------
 !zone PickItem
-PickItem
+PickItem    
+          stx PARAM6
+          
           lda ITEM_ACTIVE,y
           cmp #ITEM_BULLET
           beq .EffectBullet
@@ -1641,7 +1879,10 @@ PickItem
           cmp #ITEM_INVINCIBLE
           beq .EffectInvincible
           
+.SamDoesNotUseBullets          
+.SamDoesNotUseFastReload
 .RemoveItem          
+          ldx PARAM6
           lda #ITEM_NONE
           sta ITEM_ACTIVE,y
           
@@ -1649,9 +1890,14 @@ PickItem
           jsr IncreaseScore
 
           jsr RemoveItemImage
+          
+          ldx PARAM6
           rts
 
 .EffectBullet
+          cpx #1
+          beq .SamDoesNotUseBullets
+          
           lda PLAYER_SHELLS_MAX
           cmp #5
           beq .RemoveItem
@@ -1670,26 +1916,29 @@ PickItem
           jmp .RemoveItem
           
 .EffectHealth
-          lda PLAYER_LIVES
+          lda PLAYER_LIVES,x
           cmp #99
           beq .RemoveItem
           
-          inc PLAYER_LIVES
+          inc PLAYER_LIVES,x
           sty PARAM1
           jsr DisplayLiveNumber
           ldy PARAM1
           jmp .RemoveItem
           
 .EffectFastReload          
+          cpx #1
+          beq .SamDoesNotUseFastReload
+          
           lda #200
           sta PLAYER_FAST_RELOAD
           jmp .RemoveItem
           
 .EffectInvincible          
           lda #200
-          sta PLAYER_INVINCIBLE
+          sta PLAYER_INVINCIBLE,x
           lda #128
-          sta SPRITE_STATE
+          sta SPRITE_STATE,x
           jmp .RemoveItem
           
 ;------------------------------------------------------------
@@ -1829,6 +2078,8 @@ RemoveItemImage
 ;------------------------------------------------------------
 !zone FireShot
 FireShot
+          stx PARAM6
+          
           dec PLAYER_SHELLS
           ldy PLAYER_SHELLS
           
@@ -1859,9 +2110,9 @@ FireShot
           lda (ZEROPAGE_POINTER_1),y
           jsr IsCharBlocking
           beq .CheckHitEnemy
-          rts
-          
-.ShotDone          
+
+.ShotDone
+          ldx PARAM6
           rts
           
 .ShootRight
@@ -1949,42 +2200,196 @@ FireShot
 
 .NoEnemyHit
           jmp .ShotContinue
-          
-.EnemyKilled          
+
+.EnemyKilled
           lda #5
           jsr IncreaseScore
 
-          ldy SPRITE_ACTIVE,x
-          lda IS_TYPE_ENEMY,y
+          jsr KillEnemy
+          jmp .ShotDone
+          
+
+;------------------------------------------------------------
+;kill off enemy (remove object, generate item)
+;x = enemy index
+;------------------------------------------------------------
+!zone KillEnemy
+KillEnemy
+          ;is the enemy currently held?
+          ldy SPRITE_HELD		; if an enemy was being held
+          dey					; (fix index, boo! and compare with currently active enemy)
+          tya
+          cmp SPRITE_ACTIVE,x
+          bne .WasNotHeld
+          
+          lda #0				; set SPRITE_HELD to 0 again
+          sta SPRITE_HELD
+          
+.WasNotHeld          
+          ldy SPRITE_ACTIVE,x		; check if the sprite was an actual enemy
+          lda IS_TYPE_ENEMY,y		; (we assume the caller does not check for this)
           beq .NoEnemy
           
-          dec NUMBER_ENEMIES_ALIVE
+          dec NUMBER_ENEMIES_ALIVE	; decrease the number of enemies alive
           
 .NoEnemy          
-          lda #TYPE_EXPLOSION
-          sta SPRITE_ACTIVE,x
+          lda #TYPE_EXPLOSION		; ensue the explosion routine, regardless of we're
+          sta SPRITE_ACTIVE,x		; destroying a non enemy sprite (fascinating)
           
-          lda #15
+          lda #15				; set the enemy sprite colour to 15 (grey)
           sta VIC_SPRITE_COLOR,x
           
-          lda BIT_TABLE,x
+          lda BIT_TABLE,x		; turn multicolour on
           ora VIC_SPRITE_MULTICOLOR
           sta VIC_SPRITE_MULTICOLOR
           
-          lda #SPRITE_EXPLOSION_1
+          lda #SPRITE_EXPLOSION_1	; change shape to explosion
           sta SPRITE_POINTER_BASE,x
           
-          lda #0
+          lda #0				; set animation delay and step to 0
           sta SPRITE_ANIM_DELAY,x
           sta SPRITE_ANIM_POS,x
           
           ;only spawn item randomly
-          jsr GenerateRandomNumber
+          jsr GenerateRandomNumber	; generate a 'random' number 
           cmp #5
           bpl .CreateNoItem
-          jsr SpawnItem
+          jsr SpawnItem			; if it's 5, spawn an item
 .CreateNoItem          
-          jmp .ShotDone
+          rts
+          
+          
+;------------------------------------------------------------
+;sam uses power
+;returns 1 when holding an enemy
+;------------------------------------------------------------
+!zone SamUseForce
+SamUseForce
+          lda SPRITE_HELD			; check if we're already holding a sprite
+          beq .NoSpriteHeldNow
+          
+          lda #1					; if so, just set a to 1 and rts
+          rts
+          
+.NoSpriteHeldNow          			; if not, save the x (player sprite number)
+          stx PARAM6
+          
+          ldy SPRITE_CHAR_POS_Y,x		; get our char y position
+          dey						; adjust the index and get the char coordinates
+          lda SCREEN_LINE_OFFSET_TABLE_LO,y
+          sta ZEROPAGE_POINTER_1
+          lda SCREEN_BACK_LINE_OFFSET_TABLE_HI,y
+          sta ZEROPAGE_POINTER_1 + 1
+          
+          ldy SPRITE_CHAR_POS_X,x		; get our x position
+          
+.ShotContinue
+          ;y contains shot X pos
+          ;PARAM6 contains x sprite index of player
+          ldx PARAM6				; check which direction we're shooting in
+          lda SPRITE_DIRECTION,x
+          beq .ShootRight
+
+          ;shooting left          
+          dey						; our shot goes left (dec x position)
+          
+          lda (ZEROPAGE_POINTER_1),y	; get whatever's there
+          jsr IsCharBlocking			; check if there's anything blocking our shot
+          beq .CheckHitEnemy			; if not, check if we've hit an enemy
+
+          ldx PARAM6				; otherwise return and set a to 0 
+.ShotDoneMiss          				; so we're not holding anything
+          lda #0
+.ShotDoneHit          
+          rts
+          
+.ShootRight
+          iny						; same for right
+          
+          lda (ZEROPAGE_POINTER_1),y
+          jsr IsCharBlocking
+          bne .ShotDoneMiss			; missed, then we're ready
+          
+.CheckHitEnemy          
+          ;hit an enemy?
+          ldx #0					; now check if we've hit any enemy
+          
+.CheckEnemy          
+          stx PARAM2				; store our values
+          sty PARAM1
+          lda SPRITE_ACTIVE,x			; loop through the active sprites
+          beq .CheckNextEnemy
+
+          tax						; is this sprite an enemy?
+          lda IS_TYPE_ENEMY,x
+          beq .CheckNextEnemy
+
+          ldx PARAM2
+          ;is vulnerable?          
+          lda SPRITE_STATE,x			; is it vulnerable?
+          cmp #128
+          bpl .CheckNextEnemy
+
+          ;sprite pos matches on x?
+          lda SPRITE_CHAR_POS_X,x		; do the shot and enemy line up (x and y)
+          cmp PARAM1
+          bne .CheckNextEnemy
+          
+          ;sprite pos matches on y?
+          ldy PARAM6
+          lda SPRITE_CHAR_POS_Y,x
+          cmp SPRITE_CHAR_POS_Y,y
+          beq .EnemyHit
+
+          ;sprite pos matches on y + 1?
+          clc						; also check for the lines above and below the shot
+          adc #1
+          cmp SPRITE_CHAR_POS_Y,y
+          beq .EnemyHit
+
+          ;sprite pos matches on y - 1?
+          sec
+          sbc #2
+          cmp SPRITE_CHAR_POS_Y,y
+          bne .CheckNextEnemy
+          
+.EnemyHit          					; enemy is hit, so 
+          ;enemy hit!
+          stx SPRITE_HELD			; store its sprite number in SPRITE_HELD
+          inc SPRITE_HELD			; and fix its index (boo!)
+          
+          ;call enemy hit behaviour
+          ldy SPRITE_ACTIVE,x			; when the enemy's hit, call its hit behaviour function
+          ;enemy is active
+          dey
+          dey
+          lda ENEMY_HIT_BEHAVIOUR_TABLE_LO,y
+          sta ZEROPAGE_POINTER_1
+          lda ENEMY_HIT_BEHAVIOUR_TABLE_HI,y
+          sta ZEROPAGE_POINTER_1 + 1
+          
+          ;set up return address for rts
+          lda #>( .ShotDoneHit - 1 )
+          pha 
+          lda #<( .ShotDoneHit - 1 )
+          pha
+          
+          ldx PARAM6
+          ;1 as return value
+          lda #1
+          jmp (ZEROPAGE_POINTER_1)
+          
+.CheckNextEnemy     
+          ldx PARAM2
+          ldy PARAM1
+          inx
+          cpx #8
+          beq .NoEnemyHit
+          
+          jmp .CheckEnemy
+
+.NoEnemyHit
+          jmp .ShotContinue
           
           
 ;------------------------------------------------------------
@@ -2046,21 +2451,11 @@ SpawnItem
 ;------------------------------------------------------------
 !zone PlayerMoveLeft
 PlayerMoveLeft  
-          lda SPRITE_DIRECTION
-          bne .Move
-          
-          ;direction changed
           lda #1
-          sta SPRITE_DIRECTION
-          
-          ;lda #SPRITE_PLAYER_STAND_L
-          ;sta SPRITE_POINTER_BASE
-          
-.Move
-          ldx #0
+          sta SPRITE_DIRECTION,x
           ;fall through
 
-          
+
 ;------------------------------------------------------------
 ;move object left if not blocked
 ;x = object index
@@ -2245,18 +2640,8 @@ CanWalkLeft
 ;------------------------------------------------------------
 !zone PlayerMoveRight
 PlayerMoveRight
-          lda SPRITE_DIRECTION
-          beq .Move
-          
-          ;direction changed
           lda #0
-          sta SPRITE_DIRECTION
-          
-          lda #SPRITE_PLAYER_STAND_R
-          sta SPRITE_POINTER_BASE
-
-.Move          
-          ldx #0
+          sta SPRITE_DIRECTION,x
           ;fall through
           
                     
@@ -2845,11 +3230,19 @@ ObjectControl
           ldx #0
           
 .ObjectLoop          
+          ;object does not move when held
+          lda SPRITE_HELD				; looping through all objects, check if one matches SPRITE_HELD
+          sta PARAM1					; if so, skip it because it can't move.
+          dec PARAM1
+          cpx PARAM1
+          beq .NextObject
+          
+          ;does object exist?
           ldy SPRITE_ACTIVE,x
           beq .NextObject
           
           ;enemy is active
-          dey
+          dey								; don't forget the players are moved by this as well! 
           lda ENEMY_BEHAVIOUR_TABLE_LO,y
           sta ZEROPAGE_POINTER_1
           lda ENEMY_BEHAVIOUR_TABLE_HI,y
@@ -3760,7 +4153,7 @@ BehaviourExplosion
           
           inc SPRITE_ANIM_POS,x
           lda SPRITE_ANIM_POS,x
-          cmp #4
+          cmp #3
           beq .ExplosionDone
          
           clc
@@ -4199,7 +4592,7 @@ LEVEL_ELEMENT_TABLE_HI
           !byte >LevelLineHAlternating
           !byte >LevelLineVAlternating
           !byte >LevelQuad
-          
+
 .LevelComplete          
           rts
           
@@ -4272,6 +4665,200 @@ LevelLineH
           
           jmp NextLevelData
 
+
+;place the data at a valid bitmap position, this avoids copying the data        
+* = $2000        
+TITLE_LOGO_BMP_DATA
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,98
+        !byte 0,0,0,0,0,42,37,85,0,0,0,0,0,0,128,85,0,0,0,0,0,0,0,64,0,0,0,0,0,0,128,84
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,84,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,84,0,0,0,0,0,0,0,1,0,0,0,0,0,0,32,80
+        !byte 0,0,0,0,0,0,0,1,0,0,0,0,0,0,32,88,0,0,0,0,0,0,0,1,0,0,0,0,0,0,136,85
+        !byte 0,0,0,0,0,0,0,80,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1
+        !byte 0,0,0,0,0,0,0,64,0,0,0,0,0,0,0,5,0,0,0,0,0,0,0,64,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,4,52,60,60,31,31,223,160,5,9,5,1,1,85,85
+        !byte 1,1,1,1,1,5,5,9,0,144,144,156,148,148,148,164,9,1,1,0,8,0,0,0,97,72,77,105,65,64,130,128
+        !byte 89,235,235,235,235,235,233,233,106,218,250,246,246,254,246,246,129,148,162,166,165,165,170,170,170,170,170,169,169,168,168,169
+        !byte 168,170,10,9,9,1,0,0,0,0,0,0,0,64,0,0,255,247,255,239,255,255,239,239,84,101,25,89,89,89,21,23
+        !byte 0,0,0,0,0,0,0,0,85,105,105,105,107,106,110,102,2,2,130,98,98,90,218,218,84,164,100,100,84,92,80,28
+        !byte 0,1,1,1,1,1,1,1,108,100,167,171,171,171,169,169,1,10,11,10,11,139,66,65,85,174,149,149,85,85,69,69
+        !byte 85,151,148,149,149,148,148,148,68,129,145,133,69,65,1,1,0,96,216,248,244,244,244,244,9,11,1,1,1,0,0,0
+        !byte 66,224,128,64,64,64,128,128,5,191,31,31,31,31,31,31,80,149,70,85,117,117,85,69,0,0,64,144,144,144,144,144
+        !byte 0,0,0,0,0,0,0,0,0,148,20,117,85,85,85,85,0,0,0,0,0,0,64,64,0,8,8,4,4,4,5,5
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,21,21,22,22,5,1,1,3,84,85,165,173,106,106,90,90
+        !byte 5,5,101,101,85,85,213,213,164,164,164,164,164,164,180,180,0,0,0,0,0,0,1,5,64,64,64,64,65,64,64,64
+        !byte 107,107,107,107,106,106,107,107,91,91,95,95,255,254,104,96,166,166,162,146,146,66,2,2,170,170,170,170,170,165,165,165
+        !byte 0,0,128,0,92,0,192,0,0,0,0,0,1,1,1,1,101,101,101,101,102,102,101,101,85,89,89,85,151,151,167,101
+        !byte 0,0,0,0,0,0,0,0,102,38,37,37,37,45,33,33,149,181,165,165,169,105,107,106,16,24,90,90,82,88,88,88
+        !byte 1,173,43,11,135,167,39,39,90,218,218,250,250,218,170,170,192,192,240,240,112,176,176,176,5,5,9,9,9,9,11,5
+        !byte 148,148,148,148,148,148,148,148,9,1,9,9,9,1,1,1,167,172,164,164,167,167,164,164,0,0,0,0,0,0,0,0
+        !byte 64,64,64,64,64,64,64,64,26,26,26,26,26,26,26,26,85,85,85,86,123,233,89,89,144,80,144,208,64,64,64,64
+        !byte 3,3,3,3,1,1,1,2,215,214,150,85,85,85,85,85,96,96,64,96,96,80,80,80,5,5,5,37,38,31,31,31
+        !byte 0,0,0,0,64,96,64,80,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,16,35,15,22,22,22,22,6,214,214,25
+        !byte 149,149,149,149,93,127,127,67,164,164,167,167,165,101,101,90,8,2,7,167,167,94,94,252,64,64,1,65,1,64,0,0
+        !byte 107,107,235,235,235,235,251,55,64,64,128,128,128,0,0,0,2,2,2,2,5,5,1,1,165,165,165,165,173,237,237,235
+        !byte 0,0,10,169,102,87,87,111,1,1,162,226,209,208,208,80,101,101,101,101,101,101,101,100,107,107,235,233,218,218,218,250
+        !byte 128,128,72,104,88,80,88,240,16,16,16,16,176,48,16,16,90,90,22,22,6,7,7,1,88,88,212,212,248,250,248,248
+        !byte 57,57,57,249,201,245,228,228,246,246,254,254,61,15,15,3,148,148,148,148,180,164,164,228,13,13,15,15,11,11,11,3
+        !byte 164,156,164,164,156,156,144,144,1,1,1,1,2,0,0,0,167,167,167,167,100,101,101,25,0,0,0,0,1,2,130,244
+        !byte 64,64,0,0,128,0,0,0,26,26,26,218,26,26,26,25,86,86,86,86,85,85,85,69,240,240,112,176,176,188,188,164
+        !byte 15,15,12,4,4,8,8,0,5,5,1,1,1,1,1,0,80,80,88,84,116,116,116,116,26,26,30,22,26,26,26,26
+        !byte 80,80,80,80,90,90,85,85,0,0,0,0,160,120,120,244,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,0,0,0,0,0,0,0,245,4,160,0,0,0,0,0
+        !byte 64,0,0,0,0,0,0,0,159,37,41,0,0,0,0,0,250,88,168,32,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 21,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,2,2,0,0,0,0,0,170,85,85,255,240,0,0,0
+        !byte 170,85,85,48,0,0,0,0,64,96,160,0,0,0,0,0,144,128,32,0,0,0,0,0,22,53,13,3,0,0,0,0
+        !byte 160,80,112,0,0,0,0,0,16,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,216,128,128,0,0,0,0,0
+        !byte 152,40,0,0,0,0,0,0,1,0,0,0,0,0,0,0,152,160,0,0,0,0,0,0,1,0,0,0,0,0,0,0
+        !byte 96,128,128,0,0,0,0,0,0,0,0,0,0,0,0,0,9,0,0,0,0,0,0,0,164,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,57,48,0,0,0,0,0,0,129,1,0,0,0,0,0,0,168,84,84,192,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,220,12,8,0,0,0,0,0,58,21,53,51,15,0,0,0
+        !byte 170,85,93,240,0,0,0,0,248,88,80,128,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+
+
+        ;here is some free memory in between!
+TITLE_LOGO_COLORRAM
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,0,0,11,0,12,9,9,0,0,0,0,9,12
+        !byte 0,12,8,11,0,9,8,12,12,0,8,12,8,8,11,0,0,8,0,0,0,0,0,0,0,0,11,12,8,12,0,0
+        !byte 12,8,0,0,11,0,0,11,0,11,12,0,8,9,9,12,0,0,11,0,0,0,12,12,9,12,0,8,0,0,0,0
+        !byte 0,0,11,11,11,11,8,0,11,0,0,12,8,8,0,9,8,8,12,8,11,9,12,9,11,0,11,9,0,11,0,9
+        !byte 9,0,8,12,0,8,0,0,0,0,0,12,0,8,8,0,0,0,0,11,11,0,0,11,11,0,0,12,0,0,0,0
+        !byte 0,0,0,0,0,11,0,11,0,0,9,11,11,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+
+SCREEN_LINE_OFFSET_TABLE_LO
+          !byte ( SCREEN_CHAR +   0 ) & 0x00ff
+          !byte ( SCREEN_CHAR +  40 ) & 0x00ff
+          !byte ( SCREEN_CHAR +  80 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 120 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 160 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 200 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 240 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 280 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 320 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 360 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 400 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 440 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 480 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 520 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 560 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 600 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 640 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 680 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 720 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 760 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 800 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 840 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 880 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 920 ) & 0x00ff
+          !byte ( SCREEN_CHAR + 960 ) & 0x00ff
+          
+SCREEN_LINE_OFFSET_TABLE_HI
+          !byte ( ( SCREEN_CHAR +   0 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR +  40 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR +  80 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 120 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 160 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 200 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 240 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 280 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 320 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 360 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 400 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 440 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 480 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 520 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 560 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 600 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 640 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 680 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 720 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 760 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 800 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 840 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 880 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 920 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_CHAR + 960 ) & 0xff00 ) >> 8
+          
+SCREEN_BACK_LINE_OFFSET_TABLE_HI
+          !byte ( ( SCREEN_BACK_CHAR +   0 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR +  40 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR +  80 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 120 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 160 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 200 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 240 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 280 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 320 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 360 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 400 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 440 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 480 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 520 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 560 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 600 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 640 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 680 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 720 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 760 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 800 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 840 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 880 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 920 ) & 0xff00 ) >> 8
+          !byte ( ( SCREEN_BACK_CHAR + 960 ) & 0xff00 ) >> 8
+
+* = $2c00
+TITLE_LOGO_SCREEN_CHAR
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,176,0,176,0,144,155,139,139,176,139,0,0,144,0,176,144,176,155,176,155,144,155
+        !byte 144,0,0,176,176,144,144,0,0,0,0,0,0,0,0,0,0,0,203,155,155,152,155,155,200,200,184,184,200,176,200,152
+        !byte 0,152,155,152,144,200,155,152,152,152,155,155,155,155,152,152,0,155,144,155,0,0,0,0,0,0,152,152,155,152,176,176
+        !byte 152,155,184,152,200,144,152,152,0,152,152,155,155,200,200,155,152,155,152,0,144,152,152,152,203,155,155,155,155,0,0,0
+        !byte 0,0,200,152,152,152,155,176,152,155,184,152,155,155,152,200,155,203,152,155,152,200,152,203,152,155,152,203,155,152,152,200
+        !byte 203,144,155,152,155,155,0,0,0,0,203,155,176,155,155,0,176,0,155,152,152,155,155,152,152,192,176,155,203,176,201,176
+        !byte 155,0,201,156,0,152,155,152,0,0,203,152,152,155,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+
+
 !zone LevelLineV          
 LevelLineV
           ;X pos
@@ -4338,6 +4925,7 @@ LevelLineV
           
           jmp NextLevelData
        
+
 !zone LevelObject       
 LevelObject
           ;X pos
@@ -4354,26 +4942,58 @@ LevelObject
           iny
           lda (ZEROPAGE_POINTER_1),y
           sta PARAM3
-
+          
           ;store y for later
           tya
           pha
+
+          ;disable players not suitable for game mode
+          lda PARAM3			; are we drawing Dean or Sam?
+          cmp #TYPE_PLAYER_SAM
+          bne .NoProblemSam
           
+          ;it's Sam				; if sam, are we in single player dean mode?
+          lda GAME_MODE
+          cmp #GT_SINGLE_PLAYER_DEAN
+          beq .DoNotSpawnObject	; then don't draw sam at all
+          
+          ;make sure Sam starts in slot 1
+          ldx #1				; otherwise (sam or coop mode) draw sam in slot 1 (not 0)
+          jsr FindEmptySpriteSlotWithStartingX
+          jmp .LookedForSpriteSlot          
+          
+.DoNotSpawnObject
+          jmp NextLevelData
+
+.NoProblemSam
+          lda PARAM3			; are we drawing dean then?
+          cmp #TYPE_PLAYER_DEAN
+          bne .NoProblemDean
+
+          lda GAME_MODE
+          cmp #GT_SINGLE_PLAYER_SAM	; drawing Dean in single player sam mode?
+          beq .DoNotSpawnObject		; then don't draw Dean at all
+
+.NoProblemDean
           ;add object to sprite array
-          jsr FindEmptySpriteSlot
+          jsr FindEmptySpriteSlot		; otherwise add Dean to the first free slot (0 probably)
+.LookedForSpriteSlot          
           bne .FreeSlotFound
           jmp NextLevelData
           
 .FreeSlotFound          
-          lda PARAM3
-          sta SPRITE_ACTIVE,x
-          cmp #TYPE_PLAYER
+          lda PARAM3				; check if we're drawin sam or dean
+          sta SPRITE_ACTIVE,x			
+          cmp #TYPE_PLAYER_DEAN
+          beq .IsPlayer
+          cmp #TYPE_PLAYER_SAM
           bne .IsNotPlayer
 
-          lda PARAM1
-          sta PLAYER_START_POS_X
+.IsPlayer
+          lda PARAM1				; and draw them in their starting positions
+          sta PLAYER_START_POS_X,x
           lda PARAM2
-          sta PLAYER_START_POS_Y
+          sta PLAYER_START_POS_Y,x
           
 .IsNotPlayer          
           ;PARAM1 and PARAM2 hold x,y already
@@ -4543,7 +5163,7 @@ LevelArea
           
 .AreaDone          
           jmp NextLevelData
-          
+
 
 
 !zone LevelLineHAlternating
@@ -4750,200 +5370,6 @@ LevelQuad
           sta (ZEROPAGE_POINTER_3),y
           jmp NextLevelData
 
-          
-;place the data at a valid bitmap position, this avoids copying the data        
-* = $2000        
-TITLE_LOGO_BMP_DATA
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,98
-        !byte 0,0,0,0,0,42,37,85,0,0,0,0,0,0,128,85,0,0,0,0,0,0,0,64,0,0,0,0,0,0,128,84
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,84,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,84,0,0,0,0,0,0,0,1,0,0,0,0,0,0,32,80
-        !byte 0,0,0,0,0,0,0,1,0,0,0,0,0,0,32,88,0,0,0,0,0,0,0,1,0,0,0,0,0,0,136,85
-        !byte 0,0,0,0,0,0,0,80,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1
-        !byte 0,0,0,0,0,0,0,64,0,0,0,0,0,0,0,5,0,0,0,0,0,0,0,64,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,2,4,52,60,60,31,31,223,160,5,9,5,1,1,85,85
-        !byte 1,1,1,1,1,5,5,9,0,144,144,156,148,148,148,164,9,1,1,0,8,0,0,0,97,72,77,105,65,64,130,128
-        !byte 89,235,235,235,235,235,233,233,106,218,250,246,246,254,246,246,129,148,162,166,165,165,170,170,170,170,170,169,169,168,168,169
-        !byte 168,170,10,9,9,1,0,0,0,0,0,0,0,64,0,0,255,247,255,239,255,255,239,239,84,101,25,89,89,89,21,23
-        !byte 0,0,0,0,0,0,0,0,85,105,105,105,107,106,110,102,2,2,130,98,98,90,218,218,84,164,100,100,84,92,80,28
-        !byte 0,1,1,1,1,1,1,1,108,100,167,171,171,171,169,169,1,10,11,10,11,139,66,65,85,174,149,149,85,85,69,69
-        !byte 85,151,148,149,149,148,148,148,68,129,145,133,69,65,1,1,0,96,216,248,244,244,244,244,9,11,1,1,1,0,0,0
-        !byte 66,224,128,64,64,64,128,128,5,191,31,31,31,31,31,31,80,149,70,85,117,117,85,69,0,0,64,144,144,144,144,144
-        !byte 0,0,0,0,0,0,0,0,0,148,20,117,85,85,85,85,0,0,0,0,0,0,64,64,0,8,8,4,4,4,5,5
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,21,21,22,22,5,1,1,3,84,85,165,173,106,106,90,90
-        !byte 5,5,101,101,85,85,213,213,164,164,164,164,164,164,180,180,0,0,0,0,0,0,1,5,64,64,64,64,65,64,64,64
-        !byte 107,107,107,107,106,106,107,107,91,91,95,95,255,254,104,96,166,166,162,146,146,66,2,2,170,170,170,170,170,165,165,165
-        !byte 0,0,128,0,92,0,192,0,0,0,0,0,1,1,1,1,101,101,101,101,102,102,101,101,85,89,89,85,151,151,167,101
-        !byte 0,0,0,0,0,0,0,0,102,38,37,37,37,45,33,33,149,181,165,165,169,105,107,106,16,24,90,90,82,88,88,88
-        !byte 1,173,43,11,135,167,39,39,90,218,218,250,250,218,170,170,192,192,240,240,112,176,176,176,5,5,9,9,9,9,11,5
-        !byte 148,148,148,148,148,148,148,148,9,1,9,9,9,1,1,1,167,172,164,164,167,167,164,164,0,0,0,0,0,0,0,0
-        !byte 64,64,64,64,64,64,64,64,26,26,26,26,26,26,26,26,85,85,85,86,123,233,89,89,144,80,144,208,64,64,64,64
-        !byte 3,3,3,3,1,1,1,2,215,214,150,85,85,85,85,85,96,96,64,96,96,80,80,80,5,5,5,37,38,31,31,31
-        !byte 0,0,0,0,64,96,64,80,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,16,35,15,22,22,22,22,6,214,214,25
-        !byte 149,149,149,149,93,127,127,67,164,164,167,167,165,101,101,90,8,2,7,167,167,94,94,252,64,64,1,65,1,64,0,0
-        !byte 107,107,235,235,235,235,251,55,64,64,128,128,128,0,0,0,2,2,2,2,5,5,1,1,165,165,165,165,173,237,237,235
-        !byte 0,0,10,169,102,87,87,111,1,1,162,226,209,208,208,80,101,101,101,101,101,101,101,100,107,107,235,233,218,218,218,250
-        !byte 128,128,72,104,88,80,88,240,16,16,16,16,176,48,16,16,90,90,22,22,6,7,7,1,88,88,212,212,248,250,248,248
-        !byte 57,57,57,249,201,245,228,228,246,246,254,254,61,15,15,3,148,148,148,148,180,164,164,228,13,13,15,15,11,11,11,3
-        !byte 164,156,164,164,156,156,144,144,1,1,1,1,2,0,0,0,167,167,167,167,100,101,101,25,0,0,0,0,1,2,130,244
-        !byte 64,64,0,0,128,0,0,0,26,26,26,218,26,26,26,25,86,86,86,86,85,85,85,69,240,240,112,176,176,188,188,164
-        !byte 15,15,12,4,4,8,8,0,5,5,1,1,1,1,1,0,80,80,88,84,116,116,116,116,26,26,30,22,26,26,26,26
-        !byte 80,80,80,80,90,90,85,85,0,0,0,0,160,120,120,244,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,0,0,0,0,0,0,0,245,4,160,0,0,0,0,0
-        !byte 64,0,0,0,0,0,0,0,159,37,41,0,0,0,0,0,250,88,168,32,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 21,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,2,2,0,0,0,0,0,170,85,85,255,240,0,0,0
-        !byte 170,85,85,48,0,0,0,0,64,96,160,0,0,0,0,0,144,128,32,0,0,0,0,0,22,53,13,3,0,0,0,0
-        !byte 160,80,112,0,0,0,0,0,16,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,216,128,128,0,0,0,0,0
-        !byte 152,40,0,0,0,0,0,0,1,0,0,0,0,0,0,0,152,160,0,0,0,0,0,0,1,0,0,0,0,0,0,0
-        !byte 96,128,128,0,0,0,0,0,0,0,0,0,0,0,0,0,9,0,0,0,0,0,0,0,164,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,57,48,0,0,0,0,0,0,129,1,0,0,0,0,0,0,168,84,84,192,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,220,12,8,0,0,0,0,0,58,21,53,51,15,0,0,0
-        !byte 170,85,93,240,0,0,0,0,248,88,80,128,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-
-
-        ;here is some free memory in between!
-TITLE_LOGO_COLORRAM
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,9,0,0,11,0,12,9,9,0,0,0,0,9,12
-        !byte 0,12,8,11,0,9,8,12,12,0,8,12,8,8,11,0,0,8,0,0,0,0,0,0,0,0,11,12,8,12,0,0
-        !byte 12,8,0,0,11,0,0,11,0,11,12,0,8,9,9,12,0,0,11,0,0,0,12,12,9,12,0,8,0,0,0,0
-        !byte 0,0,11,11,11,11,8,0,11,0,0,12,8,8,0,9,8,8,12,8,11,9,12,9,11,0,11,9,0,11,0,9
-        !byte 9,0,8,12,0,8,0,0,0,0,0,12,0,8,8,0,0,0,0,11,11,0,0,11,11,0,0,12,0,0,0,0
-        !byte 0,0,0,0,0,11,0,11,0,0,9,11,11,8,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-
-SCREEN_LINE_OFFSET_TABLE_LO
-          !byte ( SCREEN_CHAR +   0 ) & 0x00ff
-          !byte ( SCREEN_CHAR +  40 ) & 0x00ff
-          !byte ( SCREEN_CHAR +  80 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 120 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 160 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 200 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 240 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 280 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 320 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 360 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 400 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 440 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 480 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 520 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 560 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 600 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 640 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 680 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 720 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 760 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 800 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 840 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 880 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 920 ) & 0x00ff
-          !byte ( SCREEN_CHAR + 960 ) & 0x00ff
-          
-SCREEN_LINE_OFFSET_TABLE_HI
-          !byte ( ( SCREEN_CHAR +   0 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR +  40 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR +  80 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 120 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 160 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 200 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 240 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 280 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 320 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 360 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 400 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 440 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 480 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 520 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 560 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 600 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 640 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 680 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 720 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 760 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 800 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 840 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 880 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 920 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_CHAR + 960 ) & 0xff00 ) >> 8
-          
-SCREEN_BACK_LINE_OFFSET_TABLE_HI
-          !byte ( ( SCREEN_BACK_CHAR +   0 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR +  40 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR +  80 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 120 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 160 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 200 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 240 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 280 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 320 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 360 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 400 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 440 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 480 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 520 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 560 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 600 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 640 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 680 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 720 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 760 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 800 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 840 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 880 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 920 ) & 0xff00 ) >> 8
-          !byte ( ( SCREEN_BACK_CHAR + 960 ) & 0xff00 ) >> 8
-        
-* = $2c00
-TITLE_LOGO_SCREEN_CHAR
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,176,0,176,0,144,155,139,139,176,139,0,0,144,0,176,144,176,155,176,155,144,155
-        !byte 144,0,0,176,176,144,144,0,0,0,0,0,0,0,0,0,0,0,203,155,155,152,155,155,200,200,184,184,200,176,200,152
-        !byte 0,152,155,152,144,200,155,152,152,152,155,155,155,155,152,152,0,155,144,155,0,0,0,0,0,0,152,152,155,152,176,176
-        !byte 152,155,184,152,200,144,152,152,0,152,152,155,155,200,200,155,152,155,152,0,144,152,152,152,203,155,155,155,155,0,0,0
-        !byte 0,0,200,152,152,152,155,176,152,155,184,152,155,155,152,200,155,203,152,155,152,200,152,203,152,155,152,203,155,152,152,200
-        !byte 203,144,155,152,155,155,0,0,0,0,203,155,176,155,155,0,176,0,155,152,152,155,155,152,152,192,176,155,203,176,201,176
-        !byte 155,0,201,156,0,152,155,152,0,0,203,152,152,155,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-        !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-
-
 ;------------------------------------------------------------
 ;wait for the raster to reach line $f8
 ;this is keeping our timing stable
@@ -4973,6 +5399,8 @@ WaitFrame
 !zone FindEmptySpriteSlot
 FindEmptySpriteSlot
           ldx #0
+FindEmptySpriteSlotWithStartingX	; simply do not set x to 0 :)
+
 .CheckSlot          
           lda SPRITE_ACTIVE,x
           beq .FoundSlot
@@ -5205,6 +5633,13 @@ DisplayLevelNumber
 ;------------------------------------------------------------
 !zone DisplayLiveNumber
 DisplayLiveNumber
+          cpx #1
+          beq DisplayLiveNumberSam		; check x for determining where to draw this info
+          
+          ;fall through
+
+!zone DisplayLiveNumberDean
+DisplayLiveNumberDean
           lda PLAYER_LIVES
           jsr DivideBy10
           
@@ -5220,7 +5655,26 @@ DisplayLiveNumber
           clc
           adc #48
           sta SCREEN_CHAR + ( 24 * 40 + 38 )
+          rts
           
+
+!zone DisplayLiveNumberSam
+DisplayLiveNumberSam
+          lda PLAYER_LIVES + 1
+          jsr DivideBy10
+          
+          pha
+          
+          ;10 digit
+          tya
+          clc
+          adc #48
+          sta SCREEN_CHAR + ( 24 * 40 + 8 )
+          
+          pla
+          clc
+          adc #48
+          sta SCREEN_CHAR + ( 24 * 40 + 9 )
           rts
           
 
@@ -5583,25 +6037,33 @@ BUTTON_PRESSED
           !byte 0
 BUTTON_RELEASED
           !byte 0
+UP_RELEASED
+          !byte 0
+DOWN_RELEASED
+          !byte 0
           
 JUMP_TABLE
           !byte 8,8,7,5,3,2,1,1,1,0
 FALL_SPEED_TABLE
           !byte 1,1,2,2,3,3,3,3,3,3
 PLAYER_SHOT_PAUSE
-          !byte 0
+          !byte 0,0
+PLAYER_FIRE_PRESSED_TIME
+          !byte 0,0
 PLAYER_LIVES
-          !byte 0
+          !byte 0,0
 PLAYER_SHELLS
           !byte 2
 PLAYER_SHELLS_MAX
           !byte 2
 PLAYER_STAND_STILL_TIME
-          !byte 0
+          !byte 0,0
 PLAYER_FAST_RELOAD
-          !byte 0
+          !byte 0,0
 PLAYER_INVINCIBLE          
-          !byte 0
+          !byte 0,0
+PLAYER_JOYSTICK_PORT
+          !byte 0,1
 
 SPRITE_HP
           !byte 0,0,0,0,0,0,0,0
@@ -5646,6 +6108,8 @@ SPRITE_HITBACK
           !byte 0,0,0,0,0,0,0,0
 SPRITE_HITBACK_DIRECTION
           !byte 0,0,0,0,0,0,0,0
+SPRITE_HELD
+          !byte 0
 
           
 ITEM_ACTIVE
@@ -5667,6 +6131,7 @@ ENEMY_BEHAVIOUR_TABLE_LO
           !byte <BehaviourBatVanishing
           !byte <BehaviourSpider
           !byte <BehaviourExplosion
+          !byte <PlayerControl
           
 ENEMY_BEHAVIOUR_TABLE_HI
           !byte >PlayerControl
@@ -5678,6 +6143,7 @@ ENEMY_BEHAVIOUR_TABLE_HI
           !byte >BehaviourBatVanishing
           !byte >BehaviourSpider
           !byte >BehaviourExplosion
+          !byte >PlayerControl
           
 ;behaviour for an enemy being hit          
 ENEMY_HIT_BEHAVIOUR_TABLE_LO          
@@ -5689,6 +6155,7 @@ ENEMY_HIT_BEHAVIOUR_TABLE_LO
           !byte <HitBehaviourVanish   ;bat vanish
           !byte <HitBehaviourHurt     ;spider
           !byte <HitBehaviourHurt     ;explosion
+          !byte <HitBehaviourHurt     ;dummy entry sam
           
 ENEMY_HIT_BEHAVIOUR_TABLE_HI
           !byte >HitBehaviourHurt     ;bat diagonal
@@ -5699,10 +6166,11 @@ ENEMY_HIT_BEHAVIOUR_TABLE_HI
           !byte >HitBehaviourVanish   ;bat vanish
           !byte >HitBehaviourHurt     ;spider
           !byte >HitBehaviourHurt     ;explosion
+          !byte >HitBehaviourHurt     ;dummy entry sam
           
 IS_TYPE_ENEMY
           !byte 0     ;dummy entry for inactive object
-          !byte 0     ;player
+          !byte 0     ;player dean
           !byte 1     ;bat_diagonal
           !byte 1     ;bat_ud
           !byte 1     ;bat 8
@@ -5711,6 +6179,7 @@ IS_TYPE_ENEMY
           !byte 1     ;bat vanish
           !byte 1     ;spider
           !byte 0     ;explosion
+          !byte 0     ;player sam
           
 TYPE_START_SPRITE
           !byte 0     ;dummy entry for inactive object
@@ -5723,6 +6192,7 @@ TYPE_START_SPRITE
           !byte SPRITE_BAT_1
           !byte SPRITE_SPIDER_STAND
           !byte SPRITE_EXPLOSION_1
+          !byte SPRITE_PLAYER_SAM_STAND_R
           
 TYPE_START_COLOR
           !byte 0
@@ -5735,6 +6205,7 @@ TYPE_START_COLOR
           !byte 3
           !byte 7
           !byte 15    ;explosion
+          !byte 10    ;player sam
           
 TYPE_START_MULTICOLOR
           !byte 0
@@ -5747,6 +6218,7 @@ TYPE_START_MULTICOLOR
           !byte 0
           !byte 1
           !byte 1     ;explosion
+          !byte 1     ;player sam
           
 TYPE_START_HP
           !byte 0
@@ -5759,6 +6231,7 @@ TYPE_START_HP
           !byte 3
           !byte 5
           !byte 0     ;explosion
+          !byte 1     ;player sam
           
 TYPE_ANNOYED_COLOR
           !byte 0     ;dummy
@@ -5771,6 +6244,8 @@ TYPE_ANNOYED_COLOR
           !byte 2     ;bat vanish
           !byte 2     ;spider
           !byte 0     ;explosion
+          !byte 10    ;player sam
+          
           
 ;enemy start direction, 2 bits per dir.
 ;        NNNNyyxx
@@ -5783,14 +6258,17 @@ TYPE_ANNOYED_COLOR
 ;            01   : move up
 ;            02   : random up or down
 TYPE_START_DIRECTION
-          !byte 0
-          !byte 0
-          !byte %00001010
-          !byte %00001010
-          !byte 2
-          !byte 2
-          !byte 2
-          !byte 2
+          !byte 0             ;dummy
+          !byte 0             ;player
+          !byte %00001010     ;bat diag.
+          !byte %00001010     ;bat up/ down
+          !byte 2             ;bat 8
+          !byte 2             ;mummy
+          !byte 2             ;zombie
+          !byte 2             ;bat vanish
+          !byte 2             ;spider
+          !byte 0             ;explosion
+          !byte 0             ;player sam
           
 BAT_ANIMATION
           !byte SPRITE_BAT_1
@@ -5803,8 +6281,7 @@ SPIDER_ANIMATION_TABLE
           !byte SPRITE_SPIDER_WALK_1
           !byte SPRITE_SPIDER_STAND
           !byte SPRITE_SPIDER_WALK_2
-          
-          
+
 PATH_8_DX
           !byte $86
           !byte $86
@@ -5904,9 +6381,12 @@ ITEM_COLOR_LR
           !byte 4,2,2,4
           
 PLAYER_START_POS_X
-          !byte 0
+          !byte 0,0
 PLAYER_START_POS_Y
-          !byte 0
+          !byte 0,0
+PLAYER_SPRITE_BASE
+          !byte 0,49
+
 LEVEL_START_DELAY
           !byte 0
           
@@ -5917,8 +6397,24 @@ XBIT_TABLE
           
 TEXT_PRESS_FIRE          
           !text "PRESS FIRE TO RESTART*"
-TEXT_DISPLAY
+TEXT_DISPLAY_DEAN_ONLY
           !text " SCORE: 00000000   ",224,224,"         LEVEL: 00                    ",225,225,"         LIVES: 03 *"
+TEXT_DISPLAY_SAM_ONLY
+          !text " SCORE: 00000000              LEVEL: 00  LIVES: 03                              *"
+TEXT_DISPLAY_DEAN_AND_SAM
+          !text " SCORE: 00000000   ",224,224,"         LEVEL: 00  LIVES: 03         ",225,225,"         LIVES: 03 *"
+
+TEXT_GAME_MODE_LO
+          !byte <TEXT_GAME_MODE_SINGLE_DEAN, <TEXT_GAME_MODE_SINGLE_SAM, <TEXT_GAME_MODE_COOP
+TEXT_GAME_MODE_HI
+          !byte >TEXT_GAME_MODE_SINGLE_DEAN, >TEXT_GAME_MODE_SINGLE_SAM, >TEXT_GAME_MODE_COOP
+
+TEXT_GAME_MODE_SINGLE_DEAN
+          !text "SINGLE PLAYER DEAN*"
+TEXT_GAME_MODE_SINGLE_SAM
+          !text "SINGLE PLAYER SAM *"
+TEXT_GAME_MODE_COOP
+          !text " COOPERATIVE PLAY*"
           
 TEXT_FIRE_TO_START
           !text "PRESS FIRE TO PLAY*"
@@ -5969,6 +6465,8 @@ COLOR_FADE_LENGTH = 16
 COLOR_FADE_1
           !byte 0,0,6,6,3,3,1,1,1,1,1,1,3,3,6,6
 
+GAME_MODE
+          !byte GT_SINGLE_PLAYER_DEAN
 
 
 
@@ -6013,7 +6511,8 @@ LEVEL_1
           !byte LD_LINE_H,12,13,4,96,13
           !byte LD_LINE_H,8,14,4,96,13
           !byte LD_LINE_H,6,16,5,96,13
-          !byte LD_OBJECT,5,4,TYPE_PLAYER
+          !byte LD_OBJECT,5,4,TYPE_PLAYER_DEAN
+          !byte LD_OBJECT,34,4,TYPE_PLAYER_SAM
           !byte LD_OBJECT,34,11,TYPE_BAT_DIAG
           !byte LD_OBJECT,31,12,TYPE_BAT_8
           !byte LD_OBJECT,10,18,TYPE_BAT_UD
@@ -6031,7 +6530,8 @@ LEVEL_2
           !byte LD_LINE_H,15,15,3,96,13
           !byte LD_LINE_H,17,17,3,96,13
           !byte LD_LINE_H,19,19,3,96,13
-          !byte LD_OBJECT,19,20,TYPE_PLAYER
+          !byte LD_OBJECT,19,20,TYPE_PLAYER_DEAN
+          !byte LD_OBJECT,22,20,TYPE_PLAYER_SAM
           !byte LD_OBJECT,4,5,TYPE_BAT_DIAG
           !byte LD_OBJECT,4,20,TYPE_ZOMBIE
           !byte LD_END
@@ -6041,7 +6541,8 @@ LEVEL_3
           !byte LD_LINE_H,17,18,8,96,13
           !byte LD_LINE_H,5,15,10,96,13
           !byte LD_LINE_H,25,21,8,96,13
-          !byte LD_OBJECT,30,14,TYPE_PLAYER
+          !byte LD_OBJECT,30,14,TYPE_PLAYER_DEAN
+          !byte LD_OBJECT,10,14,TYPE_PLAYER_SAM
           !byte LD_OBJECT,9,12,TYPE_BAT_VANISH
           !byte LD_END
 
@@ -6057,8 +6558,8 @@ LEVEL_4
           !byte LD_LINE_H_ALT,38,14,2,96,13
           !byte LD_LINE_H_ALT,6,17,33,96,13
           !byte LD_LINE_H_ALT,12,20,6,96,13
-          !byte LD_OBJECT,3,21,TYPE_PLAYER
-          !byte LD_OBJECT,3,4,TYPE_MUMMY
+          !byte LD_OBJECT,3,21,TYPE_PLAYER_DEAN
+          !byte LD_OBJECT,36,21,TYPE_PLAYER_SAM
           !byte LD_OBJECT,33,4,TYPE_ZOMBIE
           !byte LD_OBJECT,23,7,TYPE_ZOMBIE
           !byte LD_OBJECT,10,10,TYPE_ZOMBIE
@@ -6080,7 +6581,8 @@ LEVEL_5
           !byte LD_LINE_H_ALT,24,16,11,96,13
           !byte LD_LINE_H_ALT,28,19,4,96,13
           
-          !byte LD_OBJECT,13,18,TYPE_PLAYER
+          !byte LD_OBJECT,13,18,TYPE_PLAYER_DEAN
+          !byte LD_OBJECT,26,18,TYPE_PLAYER_SAM
           !byte LD_OBJECT,18,5,TYPE_BAT_DIAG
           !byte LD_OBJECT,34,8,TYPE_BAT_DIAG  
           !byte LD_OBJECT,9,11,TYPE_BAT_DIAG  
@@ -6098,7 +6600,8 @@ LEVEL_6
           !byte LD_LINE_H_ALT,26,16,13,96,13
           !byte LD_LINE_H_ALT,22,19,17,96,13
           
-          !byte LD_OBJECT,19,21,TYPE_PLAYER
+          !byte LD_OBJECT,19,21,TYPE_PLAYER_DEAN
+          !byte LD_OBJECT,21,21,TYPE_PLAYER_SAM
           !byte LD_OBJECT,5,5,TYPE_BAT_DIAG  
           !byte LD_OBJECT,15,5,TYPE_BAT_DIAG  
           !byte LD_OBJECT,25,5,TYPE_BAT_DIAG  
@@ -6123,7 +6626,8 @@ LEVEL_7
           !byte LD_LINE_V_ALT,6,8,11,128,9
           !byte LD_LINE_V_ALT,33,8,11,128,9
           
-          !byte LD_OBJECT,19,21,TYPE_PLAYER
+          !byte LD_OBJECT,19,21,TYPE_PLAYER_DEAN
+          !byte LD_OBJECT,21,21,TYPE_PLAYER_SAM
           !byte LD_OBJECT,15,5,TYPE_BAT_DIAG  
           !byte LD_OBJECT,20,5,TYPE_BAT_DIAG  
           !byte LD_OBJECT,25,5,TYPE_BAT_DIAG  
@@ -6148,7 +6652,8 @@ LEVEL_8
           !byte LD_LINE_H_ALT,5,17,7,96,13
           !byte LD_LINE_H_ALT,28,17,7,96,13
           !byte LD_LINE_H_ALT,10,20,20,96,13
-          !byte LD_OBJECT,19,21,TYPE_PLAYER
+          !byte LD_OBJECT,19,21,TYPE_PLAYER_DEAN
+          !byte LD_OBJECT,21,21,TYPE_PLAYER_SAM
           !byte LD_OBJECT,15,5,TYPE_BAT_DIAG  
           !byte LD_OBJECT,20,5,TYPE_BAT_DIAG  
           !byte LD_OBJECT,25,5,TYPE_BAT_DIAG  
@@ -6160,7 +6665,8 @@ LEVEL_9
           !byte LD_LINE_H_ALT,1,19,12,96,13
           !byte LD_LINE_H_ALT,14,19,12,96,13
           !byte LD_LINE_H_ALT,29,19,12,96,13
-          !byte LD_OBJECT,19,21,TYPE_PLAYER
+          !byte LD_OBJECT,19,21,TYPE_PLAYER_DEAN
+          !byte LD_OBJECT,21,21,TYPE_PLAYER_SAM          
           !byte LD_OBJECT,37,18,TYPE_SPIDER
           !byte LD_END
 
@@ -6173,7 +6679,8 @@ LEVEL_10
           !byte LD_LINE_H_ALT,1,20,38,96,13
           !byte LD_LINE_H_ALT,1,21,38,2,13
           
-          !byte LD_OBJECT,19,19,TYPE_PLAYER
+          !byte LD_OBJECT,18,19,TYPE_PLAYER_DEAN
+          !byte LD_OBJECT,21,19,TYPE_PLAYER_SAM
           
           !byte LD_OBJECT,4,4,TYPE_SPIDER
           !byte LD_OBJECT,19,7,TYPE_SPIDER
@@ -6188,8 +6695,6 @@ LEVEL_BORDER_DATA
           !byte LD_LINE_V_ALT,0,1,22,128,9
           !byte LD_LINE_V_ALT,39,1,22,128,9
           !byte LD_END
-
-        
 
 CHARSET
           !binary "j.chr"
