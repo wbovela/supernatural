@@ -86,16 +86,20 @@ SPRITE_PLAYER_JUMP_RECOIL_R   = SPRITE_BASE + 14
 SPRITE_PLAYER_JUMP_RECOIL_L   = SPRITE_BASE + 15
 SPRITE_PLAYER_FALL_RECOIL_R   = SPRITE_BASE + 20
 SPRITE_PLAYER_FALL_RECOIL_L   = SPRITE_BASE + 21
+
 SPRITE_BAT_2                  = SPRITE_BASE + 22
 SPRITE_BAT_3                  = SPRITE_BASE + 23
+
 SPRITE_MUMMY_R_1              = SPRITE_BASE + 24
 SPRITE_MUMMY_L_1              = SPRITE_BASE + 25
 SPRITE_MUMMY_R_2              = SPRITE_BASE + 26
 SPRITE_MUMMY_L_2              = SPRITE_BASE + 27
 SPRITE_MUMMY_ATTACK_R         = SPRITE_BASE + 28
 SPRITE_MUMMY_ATTACK_L         = SPRITE_BASE + 29
+
 SPRITE_PLAYER_RELOAD_R        = SPRITE_BASE + 30
 SPRITE_PLAYER_RELOAD_L        = SPRITE_BASE + 31
+
 SPRITE_ZOMBIE_WALK_R_1        = SPRITE_BASE + 32
 SPRITE_ZOMBIE_WALK_L_1        = SPRITE_BASE + 33
 SPRITE_ZOMBIE_WALK_R_2        = SPRITE_BASE + 34
@@ -104,17 +108,22 @@ SPRITE_ZOMBIE_COLLAPSE_R_1    = SPRITE_BASE + 36
 SPRITE_ZOMBIE_COLLAPSE_L_1    = SPRITE_BASE + 37
 SPRITE_ZOMBIE_COLLAPSE_R_2    = SPRITE_BASE + 38
 SPRITE_ZOMBIE_COLLAPSE_L_2    = SPRITE_BASE + 39
+
 SPRITE_INVISIBLE              = SPRITE_BASE + 40
 SPRITE_BAT_VANISH             = SPRITE_BASE + 41
+
 SPRITE_ZOMBIE_JUMP_R          = SPRITE_BASE + 42
 SPRITE_ZOMBIE_JUMP_L          = SPRITE_BASE + 43
+
 SPRITE_SPIDER_STAND           = SPRITE_BASE + 44
 SPRITE_SPIDER_WALK_1          = SPRITE_BASE + 45
 SPRITE_SPIDER_WALK_2          = SPRITE_BASE + 46
+
 SPRITE_EXPLOSION_1            = SPRITE_BASE + 47
 SPRITE_EXPLOSION_2            = SPRITE_BASE + 48
 SPRITE_EXPLOSION_3            = SPRITE_BASE + 49
 SPRITE_PLAYER_DEAD            = SPRITE_BASE + 50
+
 SPRITE_PLAYER_SAM_STAND_R     = SPRITE_BASE + 51
 SPRITE_PLAYER_SAM_STAND_L     = SPRITE_BASE + 52
 SPRITE_PLAYER_SAM_WALK_R_1    = SPRITE_BASE + 55
@@ -288,6 +297,13 @@ GT_COOP                 = 2
           lda #$18
           sta $d016
           
+          ;initialise music player
+          lda #15
+          sta 53248
+          
+          lda #0
+          jsr MUSIC_PLAYER
+          
 ;------------------------------------------------------------
 ;the title screen game loop
 ;------------------------------------------------------------
@@ -317,8 +333,8 @@ TitleScreenWithoutIRQ
           sta PARAM2
           jsr DisplayText
 
-          ldx GAME_MODE				; get the game mode into x
-          lda TEXT_GAME_MODE_LO,x		; load address for the appropriate text 
+          ldx GAME_MODE
+          lda TEXT_GAME_MODE_LO,x
           sta ZEROPAGE_POINTER_1
           lda TEXT_GAME_MODE_HI,x
           sta ZEROPAGE_POINTER_1 + 1
@@ -326,7 +342,7 @@ TitleScreenWithoutIRQ
           sta PARAM1
           lda #21
           sta PARAM2
-          jsr DisplayText			
+          jsr DisplayText
           
           ;display high scores
           ;x,y pos of name
@@ -423,36 +439,23 @@ TitleScreenWithoutIRQ
           cmp #8
           bne .FadeLine
 
-;if (Joystick2Read() !== up) {
-;	if (up_released) {
-;	   gamemode = mod(++gamemode, 3)
-;	   printGameMode(gamemode)
-;	   up_released = false
-;	} else {
-;	   up_released = up_released
-;	}
-;} else {
-;	up_released = true
-;}		
-		
-          lda #$01				; bit #0 is set when nothing happens
-          bit JOYSTICK_PORT_II	; bit does a bit#0 AND $01 and sets Z flag. 0&0=0 0&1=0 1&0=0 1&1=1
-          bne .NotUpPressed		; 1 and 1 = 1, Z clear so jump and set UP_RELEASED. 
-							; 	(bne only jumps when Z is set.)
-          					; 0 and 1 = 0, so up pressed
-          lda UP_RELEASED		; now check UP_RELEASED (was just set to 1)
-          beq .UpPressed			; if UP_RELEASED===false, jump away
-          					
-          inc GAME_MODE			; now change game mode
-          lda GAME_MODE			; make sure we don't wrap over 3 modes
+          lda #$01
+          bit JOYSTICK_PORT_II
+          bne .NotUpPressed
+          
+          lda UP_RELEASED
+          beq .UpPressed
+          
+          inc GAME_MODE
+          lda GAME_MODE
           cmp #3
           bne .NoGameModeWrap
           
-          lda #0				
+          lda #0
           sta GAME_MODE
 .NoGameModeWrap
           ;redisplay game mode
-          ldx GAME_MODE				; print the game mode text
+          ldx GAME_MODE
           lda TEXT_GAME_MODE_LO,x
           sta ZEROPAGE_POINTER_1
           lda TEXT_GAME_MODE_HI,x
@@ -463,7 +466,7 @@ TitleScreenWithoutIRQ
           sta PARAM2
           jsr DisplayText
           
-          lda #0					; make sure UP_RELEASED = 0 
+          lda #0
           jmp .UpPressed
 
 .NotUpPressed          
@@ -528,7 +531,7 @@ TitleScreenWithoutIRQ
 
 .DeanOnly        
           lda #0
-          sta PLAYER_LIVES
+          sta PLAYER_LIVES + 1
 
           lda #<TEXT_DISPLAY_DEAN_ONLY
           sta ZEROPAGE_POINTER_1
@@ -538,7 +541,7 @@ TitleScreenWithoutIRQ
 
 .SamOnly        
           lda #0
-          sta PLAYER_LIVES + 1
+          sta PLAYER_LIVES
           
           lda #<TEXT_DISPLAY_SAM_ONLY
           sta ZEROPAGE_POINTER_1
@@ -556,12 +559,12 @@ TitleScreenWithoutIRQ
           
           ;settings per game mode
           ;default ports
-          lda #0						; set player 0 to port 0 and player 1 to 1
-          sta PLAYER_JOYSTICK_PORT			; 0 will indicate port 2, 1 will indicate port 1 :)
+          lda #0
+          sta PLAYER_JOYSTICK_PORT
           lda #1
           sta PLAYER_JOYSTICK_PORT + 1
           
-          lda GAME_MODE					; but if sam is the only player, set him to 0
+          lda GAME_MODE
           cmp #GT_SINGLE_PLAYER_SAM
           bne .NoPortChange
           lda #0
@@ -609,12 +612,12 @@ GameLoop
           jsr ObjectControl
           
           ;check for Dean
-          lda GAME_MODE					; make sure we don't check for collissions
-          cmp #GT_SINGLE_PLAYER_SAM		; for a player that doesn't exist
+          lda GAME_MODE
+          cmp #GT_SINGLE_PLAYER_SAM
           beq .NoCollisionCheckForDean
           
-          ldx #0						; note that CheckCollisions now has a parameter x
-          jsr CheckCollisions				; indicating the player number to check for
+          ldx #0
+          jsr CheckCollisions
           
 .NoCollisionCheckForDean          
           ;check for Sam needed?
@@ -898,13 +901,13 @@ StartLevel
           sta NUMBER_ENEMIES_ALIVE
           sta LEVEL_DONE_DELAY
           sta SPRITE_POS_X_EXTEND
-          sta PLAYER_STAND_STILL_TIME			; this variable is named confusingly
-          sta PLAYER_STAND_STILL_TIME + 1		; it doesn't store a time. more like a count.
+          sta PLAYER_STAND_STILL_TIME
+          sta PLAYER_STAND_STILL_TIME + 1
           sta PLAYER_FAST_RELOAD
           sta PLAYER_INVINCIBLE
           sta PLAYER_INVINCIBLE + 1
-          sta PLAYER_FIRE_PRESSED_TIME + 1		; same here, no time but a count
-          sta SPRITE_HELD					; only one sprite can be held at a time, so a sprite number
+          sta PLAYER_FIRE_PRESSED_TIME + 1
+          sta SPRITE_HELD
           
           ;reset all items
           ldx #0
@@ -1236,12 +1239,12 @@ text
 
 ;------------------------------------------------------------
 ;check object collisions (enemy vs. player etc.)
-;x is sprite number. 
+;x 
 ;------------------------------------------------------------
 !zone CheckCollisions
 CheckCollisions
-          lda SPRITE_ACTIVE,x		; this used to not have the x index, but now we have to 
-          bne .PlayerIsAlive		; check more than 1 player. x can be 0 or 1 for players.
+          lda SPRITE_ACTIVE,x
+          bne .PlayerIsAlive
           rts          
           
 .PlayerIsAlive          
@@ -1254,9 +1257,7 @@ CheckCollisions
           stx PARAM6
           
           ;start with sprite 0 (Sam usually is at index 1)
-          ldx #0				; this makes no sense here. Sprite #0 is NEVER an enemy. 
-							; Sprite #1 might be an enemy if we're in coop mode so it makes sense
-							; to start at sprite #1.
+          ldx #0
           
 .CollisionLoop          
           lda SPRITE_ACTIVE,x
@@ -1300,8 +1301,8 @@ CheckCollisions
           sta SPRITE_MOVE_POS,x
           
           lda SPRITE_ACTIVE,x
-          cmp #TYPE_PLAYER_SAM			; if the player was killed AND he was of type SAM
-          bne .PlayerWasDean				; we need to reset some things specific to him (SPRITE_HELD)
+          cmp #TYPE_PLAYER_SAM
+          bne .PlayerWasDean
           
           ;reset Sam specific variables
           lda #0
@@ -1355,8 +1356,8 @@ IsEnemyCollidingWithPlayer
           ;X = Index in enemy-table
           jsr .CalculateSimpleXPos
           sta PARAM1
-          ;vs. player X				; what? this used to be LDX #$00 but now Y holds the 
-          tya						; player number so we transfer Y to X via A (only way possible)
+          ;vs. player X
+          tya
           tax
           jsr .CalculateSimpleXPos
           
@@ -1380,7 +1381,7 @@ IsEnemyCollidingWithPlayer
 ;------------------------------------------------------------
 ;check joystick (player control)
 ;------------------------------------------------------------
-!zone PlayerControl					; this is not the entry point for this function
+!zone PlayerControl
 .PlayerIsDying
           inc SPRITE_MOVE_POS,x
           lda SPRITE_MOVE_POS,x
@@ -1404,14 +1405,14 @@ IsEnemyCollidingWithPlayer
           bne .RestartPlayer
           
           ;is other player alive?
-          lda PLAYER_LIVES			; simply add both player lives counters and
-          clc						; check for zero. Be sure to clear the carry before adding
+          lda PLAYER_LIVES
+          clc
           adc PLAYER_LIVES + 1
           bne .OtherPlayerStillAlive
-          jmp CheckForHighscore		; this is game over
+          jmp CheckForHighscore
           
 .OtherPlayerStillAlive
-          jsr RemoveObject			; otherwise just remove the deceased player
+          jsr RemoveObject
           rts
           
 .RestartPlayer          
@@ -1421,8 +1422,8 @@ IsEnemyCollidingWithPlayer
           
           ;refill shells
           ldy #0
-.RefillShellImage          					; Sam doesn't use bullets so we can skip this
-          lda #2							; in case of sam.
+.RefillShellImage          
+          lda #2
           sta SCREEN_COLOR + 23 * 40 + 19,y
           lda #7
           sta SCREEN_COLOR + 24 * 40 + 19,y
@@ -1436,23 +1437,23 @@ IsEnemyCollidingWithPlayer
           
 .PlayerIsNotDean
           ;respawn at correct position
-          lda PLAYER_START_POS_X,x				; for both players, get their starting positions
+          lda PLAYER_START_POS_X,x
           sta PARAM1 
           lda PLAYER_START_POS_Y,x
           sta PARAM2
 
           ;PARAM1 and PARAM2 hold x,y already
-          jsr CalcSpritePosFromCharPos			; calculate their sprite coordinates
+          jsr CalcSpritePosFromCharPos
           
           ;enable sprite
-          lda BIT_TABLE,x					; enable the correct one
+          lda BIT_TABLE,x
           ora VIC_SPRITE_ENABLE
           sta VIC_SPRITE_ENABLE
           
-          ;initialise enemy values				; weird comment here (enemy), we're in player control
-          lda #SPRITE_PLAYER					; apparently each player looks like Dean in the init
+          ;initialise enemy values
+          lda #SPRITE_PLAYER
           sta SPRITE_POINTER_BASE,x
-          lda #0							; reset player related values
+          lda #0
           sta PLAYER_FAST_RELOAD,x
           sta PLAYER_INVINCIBLE,x
           sta SPRITE_STATE,x
@@ -1467,22 +1468,22 @@ IsEnemyCollidingWithPlayer
           sta SPRITE_FALLING,x
           rts
 
-PlayerControl							; note that this function's entry point is here
-          lda SPRITE_STATE,x				; and not at the top. This is due to branching limitations
-          cmp #129						; of the 6510: 128 bytes forward and 127 bytes back.
-          bne .NotDying					; start by testing if we're dying (floating up animation)
+PlayerControl
+          lda SPRITE_STATE,x
+          cmp #129
+          bne .NotDying
           jmp .PlayerIsDying
           
-.NotDying          						; we're still alive
-          lda PLAYER_INVINCIBLE,x			; check if we're invincible
+.NotDying          
+          lda PLAYER_INVINCIBLE,x
           beq .NotInvincible
           
           ;count down invincibility
-          inc VIC_SPRITE_COLOR,x			; if we are we flash
-          dec PLAYER_INVINCIBLE,x			; decrease the counter for invincibility
-          bne .NotInvincible				; if it's 0 we're done being invincible
+          inc VIC_SPRITE_COLOR,x
+          dec PLAYER_INVINCIBLE,x
+          bne .NotInvincible
 
-          lda #0						; restore sprite state and colour
+          lda #0
           sta SPRITE_STATE,x
           lda #10
           sta VIC_SPRITE_COLOR,x
@@ -1530,8 +1531,8 @@ PlayerControl							; note that this function's entry point is here
 .LastItemReached
 
           ;check if player moved
-          ldy PLAYER_JOYSTICK_PORT,x		; load y with the port index (0 or 1)
-          lda JOYSTICK_PORT_II,y			; $dc00 is port #2, $dc01 is port #1. 
+          ldy PLAYER_JOYSTICK_PORT,x
+          lda JOYSTICK_PORT_II,y
           and #$1f
           cmp #$1f
           bne .PlayerMoved
@@ -1574,11 +1575,11 @@ PlayerControl							; note that this function's entry point is here
           sta PLAYER_STAND_STILL_TIME,x
           
 .HandleFire          
-          cpx #1						; if x=1 we're SAM and we handle his firing
+          cpx #1
           beq .FireSam
           
           ;handle shooting/shoot pause
-          lda PLAYER_SHOT_PAUSE,x			; remember how easy Dean was?
+          lda PLAYER_SHOT_PAUSE,x
           bne .CannotShoot
           
           lda PLAYER_SHELLS
@@ -1593,28 +1594,28 @@ PlayerControl							; note that this function's entry point is here
           jmp .FireDone
 
 .FireSam
-          ldy PLAYER_JOYSTICK_PORT,x		; check the correct port for if fire is pushed
-          lda JOYSTICK_PORT_II,y			; this happens every frame!
+          ldy PLAYER_JOYSTICK_PORT,x
+          lda JOYSTICK_PORT_II,y
           and #$10
-          bne .SamNotFirePushed			; if not, just reset some values and rts
+          bne .SamNotFirePushed
           
-          lda #1						; we use PLAYER_FIRE_PRESSED_TIME as a toggle
-          sta PLAYER_FIRE_PRESSED_TIME,x	; not a counter
+          lda #1
+          sta PLAYER_FIRE_PRESSED_TIME,x
           
-          stx PARAM6					; store the sprite number
+          stx PARAM6
           
-          jsr SamUseForce				; while pressed, sam uses his force and holds enemies
-          beq .NoEnemyHeld				; no enemy held is basically .FireDone 
+          jsr SamUseForce
+          beq .NoEnemyHeld
           
           ;Sam needs to keep pressed
-          inc PLAYER_SHOT_PAUSE,x			; we use PLAYER_SHOT_PAUSE here do measure if sam	
-          							; has pressed fire for 40 cycles
+          inc PLAYER_SHOT_PAUSE,x
+          
           lda PLAYER_SHOT_PAUSE,x
           cmp #40
-          beq .EnemyHurtBySam				; if so, the enemy was actually hurt
+          beq .EnemyHurtBySam
           
-          ldy SPRITE_HELD				; otherwise set the enemy's sprite colour to red 
-          dey							; notice we have to adjust the table index here..boo!
+          ldy SPRITE_HELD
+          dey
           lda #2
           sta VIC_SPRITE_COLOR,y
           
@@ -1624,29 +1625,29 @@ PlayerControl							; note that this function's entry point is here
           ldx PARAM6
           jmp .NotFirePushed
           
-.EnemyHurtBySam						; when the enemy was hurt by sam, reset the 
-          lda #0						; PLAYER_SHOT_PAUSE counter for sam
+.EnemyHurtBySam
+          lda #0
           sta PLAYER_SHOT_PAUSE,x
           
-          ldx SPRITE_HELD				; reset the enemy sprite colour
+          ldx SPRITE_HELD
           dex
           
           lda #0
           sta VIC_SPRITE_COLOR,x
           
-          dec SPRITE_HP,x				; and decrease its HP
-          bne .EnemyWasHurt				; not dead yet, continue to an rts
+          dec SPRITE_HP,x
+          bne .EnemyWasHurt
           
 .EnemyKilledBySam          
-          lda #5						; we killed the enemy, so increase score by 5
+          lda #5
           jsr IncreaseScore
           
-          ldx SPRITE_HELD				; get the enemy sprite number and kill it
+          ldx SPRITE_HELD
           dex
 
           jsr KillEnemy
           
-          ldx PARAM6					; set sprite held back to 0 and rts out
+          ldx PARAM6
           lda #0
           sta SPRITE_HELD
           jmp .NotFirePushed
@@ -1681,16 +1682,16 @@ PlayerControl							; note that this function's entry point is here
           
 .NotUpPressed          
 .JumpStopped
-.JumpComplete								; this is where all the moving is done...
-          cpx #1							; when moving sam we have to check if he's 
-          bne .PlayerIsDean					; using the force
+.JumpComplete
+          cpx #1
+          bne .PlayerIsDean
           
           ;if Sam is powering up he cannot move
-          lda PLAYER_FIRE_PRESSED_TIME,x		; so if this toggle is not on, continue
+          lda PLAYER_FIRE_PRESSED_TIME,x
           beq .SamIsNotPowering
           
-          lda #SPRITE_PLAYER_SAM_POWER_R		; otherwise just reset his sprite and direction
-          clc								; and rts out
+          lda #SPRITE_PLAYER_SAM_POWER_R
+          clc
           adc SPRITE_DIRECTION + 1
           sta SPRITE_POINTER_BASE + 1
           rts
@@ -1762,8 +1763,8 @@ PlayerControl							; note that this function's entry point is here
           bpl .NotReloading
           
           ;don't show reload sprites for Sam
-          cpx #1							; only Dean gets the reloading animation
-          beq .NotReloading					; skip over it for Sam
+          cpx #1
+          beq .NotReloading
           
           ;set reload anim
           lda PLAYER_SHELLS
@@ -2216,45 +2217,45 @@ FireShot
 !zone KillEnemy
 KillEnemy
           ;is the enemy currently held?
-          ldy SPRITE_HELD		; if an enemy was being held
-          dey					; (fix index, boo! and compare with currently active enemy)
+          ldy SPRITE_HELD
+          dey
           tya
           cmp SPRITE_ACTIVE,x
           bne .WasNotHeld
           
-          lda #0				; set SPRITE_HELD to 0 again
+          lda #0
           sta SPRITE_HELD
           
 .WasNotHeld          
-          ldy SPRITE_ACTIVE,x		; check if the sprite was an actual enemy
-          lda IS_TYPE_ENEMY,y		; (we assume the caller does not check for this)
+          ldy SPRITE_ACTIVE,x
+          lda IS_TYPE_ENEMY,y
           beq .NoEnemy
           
-          dec NUMBER_ENEMIES_ALIVE	; decrease the number of enemies alive
+          dec NUMBER_ENEMIES_ALIVE
           
 .NoEnemy          
-          lda #TYPE_EXPLOSION		; ensue the explosion routine, regardless of we're
-          sta SPRITE_ACTIVE,x		; destroying a non enemy sprite (fascinating)
+          lda #TYPE_EXPLOSION
+          sta SPRITE_ACTIVE,x
           
-          lda #15				; set the enemy sprite colour to 15 (grey)
+          lda #15
           sta VIC_SPRITE_COLOR,x
           
-          lda BIT_TABLE,x		; turn multicolour on
+          lda BIT_TABLE,x
           ora VIC_SPRITE_MULTICOLOR
           sta VIC_SPRITE_MULTICOLOR
           
-          lda #SPRITE_EXPLOSION_1	; change shape to explosion
+          lda #SPRITE_EXPLOSION_1
           sta SPRITE_POINTER_BASE,x
           
-          lda #0				; set animation delay and step to 0
+          lda #0
           sta SPRITE_ANIM_DELAY,x
           sta SPRITE_ANIM_POS,x
           
           ;only spawn item randomly
-          jsr GenerateRandomNumber	; generate a 'random' number 
+          jsr GenerateRandomNumber
           cmp #5
           bpl .CreateNoItem
-          jsr SpawnItem			; if it's 5, spawn an item
+          jsr SpawnItem
 .CreateNoItem          
           rts
           
@@ -2265,73 +2266,73 @@ KillEnemy
 ;------------------------------------------------------------
 !zone SamUseForce
 SamUseForce
-          lda SPRITE_HELD			; check if we're already holding a sprite
+          lda SPRITE_HELD
           beq .NoSpriteHeldNow
           
-          lda #1					; if so, just set a to 1 and rts
+          lda #1
           rts
           
-.NoSpriteHeldNow          			; if not, save the x (player sprite number)
+.NoSpriteHeldNow          
           stx PARAM6
           
-          ldy SPRITE_CHAR_POS_Y,x		; get our char y position
-          dey						; adjust the index and get the char coordinates
+          ldy SPRITE_CHAR_POS_Y,x
+          dey
           lda SCREEN_LINE_OFFSET_TABLE_LO,y
           sta ZEROPAGE_POINTER_1
           lda SCREEN_BACK_LINE_OFFSET_TABLE_HI,y
           sta ZEROPAGE_POINTER_1 + 1
           
-          ldy SPRITE_CHAR_POS_X,x		; get our x position
+          ldy SPRITE_CHAR_POS_X,x
           
 .ShotContinue
           ;y contains shot X pos
           ;PARAM6 contains x sprite index of player
-          ldx PARAM6				; check which direction we're shooting in
+          ldx PARAM6
           lda SPRITE_DIRECTION,x
           beq .ShootRight
 
           ;shooting left          
-          dey						; our shot goes left (dec x position)
+          dey
           
-          lda (ZEROPAGE_POINTER_1),y	; get whatever's there
-          jsr IsCharBlocking			; check if there's anything blocking our shot
-          beq .CheckHitEnemy			; if not, check if we've hit an enemy
+          lda (ZEROPAGE_POINTER_1),y
+          jsr IsCharBlocking
+          beq .CheckHitEnemy
 
-          ldx PARAM6				; otherwise return and set a to 0 
-.ShotDoneMiss          				; so we're not holding anything
+          ldx PARAM6
+.ShotDoneMiss          
           lda #0
 .ShotDoneHit          
           rts
           
 .ShootRight
-          iny						; same for right
+          iny
           
           lda (ZEROPAGE_POINTER_1),y
           jsr IsCharBlocking
-          bne .ShotDoneMiss			; missed, then we're ready
+          bne .ShotDoneMiss
           
 .CheckHitEnemy          
           ;hit an enemy?
-          ldx #0					; now check if we've hit any enemy
+          ldx #0
           
 .CheckEnemy          
-          stx PARAM2				; store our values
+          stx PARAM2
           sty PARAM1
-          lda SPRITE_ACTIVE,x			; loop through the active sprites
+          lda SPRITE_ACTIVE,x
           beq .CheckNextEnemy
 
-          tax						; is this sprite an enemy?
+          tax
           lda IS_TYPE_ENEMY,x
           beq .CheckNextEnemy
 
           ldx PARAM2
           ;is vulnerable?          
-          lda SPRITE_STATE,x			; is it vulnerable?
+          lda SPRITE_STATE,x
           cmp #128
           bpl .CheckNextEnemy
 
           ;sprite pos matches on x?
-          lda SPRITE_CHAR_POS_X,x		; do the shot and enemy line up (x and y)
+          lda SPRITE_CHAR_POS_X,x
           cmp PARAM1
           bne .CheckNextEnemy
           
@@ -2342,7 +2343,7 @@ SamUseForce
           beq .EnemyHit
 
           ;sprite pos matches on y + 1?
-          clc						; also check for the lines above and below the shot
+          clc
           adc #1
           cmp SPRITE_CHAR_POS_Y,y
           beq .EnemyHit
@@ -2353,13 +2354,13 @@ SamUseForce
           cmp SPRITE_CHAR_POS_Y,y
           bne .CheckNextEnemy
           
-.EnemyHit          					; enemy is hit, so 
+.EnemyHit          
           ;enemy hit!
-          stx SPRITE_HELD			; store its sprite number in SPRITE_HELD
-          inc SPRITE_HELD			; and fix its index (boo!)
+          stx SPRITE_HELD
+          inc SPRITE_HELD
           
           ;call enemy hit behaviour
-          ldy SPRITE_ACTIVE,x			; when the enemy's hit, call its hit behaviour function
+          ldy SPRITE_ACTIVE,x
           ;enemy is active
           dey
           dey
@@ -3231,8 +3232,8 @@ ObjectControl
           
 .ObjectLoop          
           ;object does not move when held
-          lda SPRITE_HELD				; looping through all objects, check if one matches SPRITE_HELD
-          sta PARAM1					; if so, skip it because it can't move.
+          lda SPRITE_HELD
+          sta PARAM1
           dec PARAM1
           cpx PARAM1
           beq .NextObject
@@ -3242,7 +3243,7 @@ ObjectControl
           beq .NextObject
           
           ;enemy is active
-          dey								; don't forget the players are moved by this as well! 
+          dey
           lda ENEMY_BEHAVIOUR_TABLE_LO,y
           sta ZEROPAGE_POINTER_1
           lda ENEMY_BEHAVIOUR_TABLE_HI,y
@@ -4858,6 +4859,11 @@ TITLE_LOGO_SCREEN_CHAR
         !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
         !byte 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 
+* = $3000
+MUSIC_PLAYER
+!binary "gt2music.bin"
+;!binary "funkdemomusic.bin"
+;!binary "ghosttrackers.bin"
 
 !zone LevelLineV          
 LevelLineV
@@ -4948,17 +4954,17 @@ LevelObject
           pha
 
           ;disable players not suitable for game mode
-          lda PARAM3			; are we drawing Dean or Sam?
+          lda PARAM3
           cmp #TYPE_PLAYER_SAM
           bne .NoProblemSam
           
-          ;it's Sam				; if sam, are we in single player dean mode?
+          ;it's Sam
           lda GAME_MODE
           cmp #GT_SINGLE_PLAYER_DEAN
-          beq .DoNotSpawnObject	; then don't draw sam at all
+          beq .DoNotSpawnObject
           
           ;make sure Sam starts in slot 1
-          ldx #1				; otherwise (sam or coop mode) draw sam in slot 1 (not 0)
+          ldx #1
           jsr FindEmptySpriteSlotWithStartingX
           jmp .LookedForSpriteSlot          
           
@@ -4966,31 +4972,31 @@ LevelObject
           jmp NextLevelData
 
 .NoProblemSam
-          lda PARAM3			; are we drawing dean then?
+          lda PARAM3
           cmp #TYPE_PLAYER_DEAN
           bne .NoProblemDean
 
           lda GAME_MODE
-          cmp #GT_SINGLE_PLAYER_SAM	; drawing Dean in single player sam mode?
-          beq .DoNotSpawnObject		; then don't draw Dean at all
+          cmp #GT_SINGLE_PLAYER_SAM
+          beq .DoNotSpawnObject
 
 .NoProblemDean
           ;add object to sprite array
-          jsr FindEmptySpriteSlot		; otherwise add Dean to the first free slot (0 probably)
+          jsr FindEmptySpriteSlot
 .LookedForSpriteSlot          
           bne .FreeSlotFound
           jmp NextLevelData
           
 .FreeSlotFound          
-          lda PARAM3				; check if we're drawin sam or dean
-          sta SPRITE_ACTIVE,x			
+          lda PARAM3
+          sta SPRITE_ACTIVE,x
           cmp #TYPE_PLAYER_DEAN
           beq .IsPlayer
           cmp #TYPE_PLAYER_SAM
           bne .IsNotPlayer
 
 .IsPlayer
-          lda PARAM1				; and draw them in their starting positions
+          lda PARAM1
           sta PLAYER_START_POS_X,x
           lda PARAM2
           sta PLAYER_START_POS_Y,x
@@ -5388,6 +5394,8 @@ WaitFrame
           cmp #$F8
           bne .WaitStep2
           
+          ;play music
+          jsr MUSIC_PLAYER + 3
           rts
 
 
@@ -5399,7 +5407,7 @@ WaitFrame
 !zone FindEmptySpriteSlot
 FindEmptySpriteSlot
           ldx #0
-FindEmptySpriteSlotWithStartingX	; simply do not set x to 0 :)
+FindEmptySpriteSlotWithStartingX
 
 .CheckSlot          
           lda SPRITE_ACTIVE,x
@@ -5634,7 +5642,7 @@ DisplayLevelNumber
 !zone DisplayLiveNumber
 DisplayLiveNumber
           cpx #1
-          beq DisplayLiveNumberSam		; check x for determining where to draw this info
+          beq DisplayLiveNumberSam
           
           ;fall through
 
