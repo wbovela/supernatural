@@ -8,7 +8,6 @@ With this series I am trying to learn game programming while at the same time pr
 
 I am using Georg's Integrated Development Environment (IDE) called C64Studio. If you want to code along, please visit my Github page where I provide access to the code as the project develops. Please find the necessary links below:
 
-http://www.thehilander.nl
 http://www.georg-rottensteiner.de/en/index.html
 https://github.com/wbovela/supernatural
 http://www.gamedev.net/blog/949/entry-2249750-a-c64-game-in-several-steps-lots-of-em/
