@@ -2,7 +2,7 @@ Weblinks to Georg Rottensteiner's tutorial.
 
 The original blog was listed on gamedev.net. Apparently over time the blog was preserved at Georg's own website. You can find the same information by going to the links in the following form (step 36 used as an example, simply exchange the step number you are looking for):
 
-https://www.georg-rottensteiner.de/c64/projectj/step1/step1.html
+https://www.georg-rottensteiner.de/c64/projectj/step36/step36.html
 
 The original gamedev.net links:
 1:	http://www.gamedev.net/blog/949/entry-2249750-a-c64-game-in-several-steps-lots-of-em/
