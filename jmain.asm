@@ -28,6 +28,7 @@ JOYSTICK_PORT_II        = $dc00
 
 CIA_PRA                 = $dd00
 
+
 ;placeholder for various temp parameters
 PARAM1                  = $03
 PARAM2                  = $04
@@ -166,8 +167,10 @@ LD_AREA                 = 4     ;data contains x,y,width,height,char,color
 LD_LINE_H_ALT           = 5     ;data contains x,y,width,char,color
 LD_LINE_V_ALT           = 6     ;data contains x,y,height,char,color
 LD_QUAD                 = 7     ;data contains x,y,quad_id
+LD_SPAWN_SPOT           = 8     ;data contains x,y,type,count
 
 ;object type constants
+TYPE_INVALID            = 0
 TYPE_PLAYER_DEAN        = 1
 TYPE_BAT_DIAG           = 2
 TYPE_BAT_UD             = 3
@@ -190,6 +193,9 @@ ITEM_NONE               = 255
 
 ;number of possible items
 ITEM_COUNT              = 8
+
+;number of possible spawn spots
+SPAWN_SPOT_COUNT        = 8
 
 ;game mode types
 GT_SINGLE_PLAYER_DEAN   = 0
@@ -489,7 +495,8 @@ TitleScreenWithoutIRQ
           lda #1
           sta BUTTON_RELEASED
           jmp .TitleLoop
-          
+        
+StartGame        
 .Restart
           jsr WaitFrame
           jsr ReleaseTitleIRQ
@@ -503,7 +510,7 @@ TitleScreenWithoutIRQ
           ;setup level
           jsr StartLevel
           
-          lda #9
+          lda #11
           sta LEVEL_NR
           jsr BuildScreen
           
@@ -830,6 +837,8 @@ IrqSetTextMode
 ;------------------------------------------------------------
 !zone GameFlowControl
 GameFlowControl
+
+          ;------------------------
           ;let items dissolve
           ldx #0
 .ItemLoop
@@ -852,6 +861,9 @@ GameFlowControl
           cpx #ITEM_COUNT
           bne .ItemLoop
           
+          jsr ProcessSpawnSpots
+          
+          ;------------------------
           ;slow events
           inc DELAYED_GENERIC_COUNTER
           lda DELAYED_GENERIC_COUNTER
@@ -862,6 +874,8 @@ GameFlowControl
 
           ;level done delay
           lda NUMBER_ENEMIES_ALIVE
+          bne .NotDoneYet
+          lda NUMBER_SPAWN_SPOTS_ALIVE
           bne .NotDoneYet
 
           inc LEVEL_DONE_DELAY
@@ -888,6 +902,71 @@ GameFlowControl
           rts
 
 
+
+;------------------------------------------------------------
+;handle spawn spots
+;------------------------------------------------------------
+!zone ProcessSpawnSpots
+ProcessSpawnSpots
+          ldx #0
+.SpawnSpotLoop
+          lda SPAWN_SPOT_ACTIVE,x
+          beq .NextSpawnSpot
+          
+          lda SPAWN_SPOT_DELAY ,x
+          beq .TryToSpawn
+          
+          dec SPAWN_SPOT_DELAY,x
+          jmp .NextSpawnSpot
+          
+.RemoveSpawnSpot          
+          lda #0
+          sta SPAWN_SPOT_ACTIVE,x
+          dec NUMBER_SPAWN_SPOTS_ALIVE
+          
+.NextSpawnSpot
+          inx
+          cpx #SPAWN_SPOT_COUNT
+          bne .SpawnSpotLoop
+          
+          rts
+
+.TryToSpawn
+          lda #128
+          sta SPAWN_SPOT_DELAY,x
+          
+          lda NUMBER_ENEMIES_ALIVE
+          cmp #3
+          bpl .DoNotSpawn
+          
+          stx PARAM4
+          lda SPAWN_SPOT_TYPE,x
+          sta PARAM3
+          lda SPAWN_SPOT_X,x
+          sta PARAM1
+          lda SPAWN_SPOT_Y,x
+          sta PARAM2
+          
+          ;spawn object
+          jsr FindEmptySpriteSlot
+          beq .DoNotSpawn
+          
+          ;x is sprite slot
+          ;PARAM1 is X
+          ;PARAM2 is Y
+          ;PARAM3 is object type
+          jsr SpawnObject
+          
+          ;restore x
+          ldx PARAM4
+
+          dec SPAWN_SPOT_SPAWN_COUNT,x
+          beq .RemoveSpawnSpot
+          
+.DoNotSpawn          
+          jmp .NextSpawnSpot
+          
+          
 ;------------------------------------------------------------
 ;sets up variables for new level
 ;------------------------------------------------------------
@@ -4508,6 +4587,7 @@ BuildScreen
           ;reset all objects
           ldx #0
           lda #0
+          sta NUMBER_SPAWN_SPOTS_ALIVE
 .ClearObjectLoop
           sta SPRITE_ACTIVE,x
           sta SPRITE_FALLING,x
@@ -4515,6 +4595,8 @@ BuildScreen
           sta SPRITE_DIRECTION_Y,x
           sta SPRITE_ANIM_POS,x
           sta SPRITE_ANIM_DELAY,x
+          sta SPAWN_SPOT_ACTIVE,x
+          
           inx
           cpx #8
           bne .ClearObjectLoop
@@ -4583,6 +4665,7 @@ LEVEL_ELEMENT_TABLE_LO
           !byte <LevelLineHAlternating
           !byte <LevelLineVAlternating
           !byte <LevelQuad
+          !byte <LevelSpawnSpot
           
 LEVEL_ELEMENT_TABLE_HI
           !byte >.LevelComplete
@@ -4593,6 +4676,7 @@ LEVEL_ELEMENT_TABLE_HI
           !byte >LevelLineHAlternating
           !byte >LevelLineVAlternating
           !byte >LevelQuad
+          !byte >LevelSpawnSpot
 
 .LevelComplete          
           rts
@@ -4862,8 +4946,6 @@ TITLE_LOGO_SCREEN_CHAR
 * = $3000
 MUSIC_PLAYER
 !binary "gt2music.bin"
-;!binary "funkdemomusic.bin"
-;!binary "ghosttrackers.bin"
 
 !zone LevelLineV          
 LevelLineV
@@ -4981,11 +5063,23 @@ LevelObject
           beq .DoNotSpawnObject
 
 .NoProblemDean
-          ;add object to sprite array
           jsr FindEmptySpriteSlot
 .LookedForSpriteSlot          
-          bne .FreeSlotFound
+          jsr SpawnObject
           jmp NextLevelData
+          
+
+;------------------------------------------------------------
+;x is sprite slot
+;PARAM1 is X
+;PARAM2 is Y
+;PARAM3 is object type
+;------------------------------------------------------------
+!zone SpawnObject
+SpawnObject
+          ;add object to sprite array
+          bne .FreeSlotFound
+          rts
           
 .FreeSlotFound          
           lda PARAM3
@@ -5082,7 +5176,7 @@ LevelObject
 .NoEnemy
           
 .NoFreeSlot                    
-          jmp NextLevelData
+          rts
 
 
 !zone LevelArea
@@ -5375,6 +5469,51 @@ LevelQuad
           lda BLOCK_TABLE_LR_COLOR_LOCATION0,x
           sta (ZEROPAGE_POINTER_3),y
           jmp NextLevelData
+          
+          
+!zone LevelSpawnSpot          
+LevelSpawnSpot
+          ;find free spot
+          ldx #0
+          
+.ExamineNextSpot          
+          lda SPAWN_SPOT_ACTIVE,x
+          beq .EmptySpotFound
+          inx
+          cpx SPAWN_SPOT_COUNT
+          bne .ExamineNextSpot
+          jmp NextLevelData
+          
+.EmptySpotFound          
+          inc NUMBER_SPAWN_SPOTS_ALIVE
+          lda #1
+          sta SPAWN_SPOT_ACTIVE,x
+          ;X pos
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta SPAWN_SPOT_X,x
+          
+          ;Y pos
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta SPAWN_SPOT_Y,x
+
+          ;type
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta SPAWN_SPOT_TYPE,x
+
+          ;count
+          iny
+          lda (ZEROPAGE_POINTER_1),y
+          sta SPAWN_SPOT_SPAWN_COUNT,x
+
+          tya
+          pha
+
+          jmp NextLevelData
+
+
 
 ;------------------------------------------------------------
 ;wait for the raster to reach line $f8
@@ -6119,6 +6258,19 @@ SPRITE_HITBACK_DIRECTION
 SPRITE_HELD
           !byte 0
 
+SPAWN_SPOT_X
+          !fill SPAWN_SPOT_COUNT,0
+SPAWN_SPOT_Y
+          !fill SPAWN_SPOT_COUNT,0
+SPAWN_SPOT_ACTIVE
+          !fill SPAWN_SPOT_COUNT,0
+SPAWN_SPOT_TYPE
+          !fill SPAWN_SPOT_COUNT,0
+SPAWN_SPOT_SPAWN_COUNT
+          !fill SPAWN_SPOT_COUNT,0
+SPAWN_SPOT_DELAY
+          !fill SPAWN_SPOT_COUNT,0
+
           
 ITEM_ACTIVE
           !fill ITEM_COUNT,ITEM_NONE
@@ -6229,15 +6381,15 @@ TYPE_START_MULTICOLOR
           !byte 1     ;player sam
           
 TYPE_START_HP
-          !byte 0
-          !byte 1
-          !byte 5
-          !byte 5
-          !byte 5
-          !byte 10
-          !byte 8
-          !byte 3
-          !byte 5
+          !byte 0     ;dummy
+          !byte 1     ;player dean
+          !byte 5     ;bat 1
+          !byte 5     ;bat 1
+          !byte 5     ;bat 2
+          !byte 10    ;mummy
+          !byte 8     ;zombie
+          !byte 3     ;nasty bat
+          !byte 2     ;spider
           !byte 0     ;explosion
           !byte 1     ;player sam
           
@@ -6366,6 +6518,9 @@ PATH_8_DY
           
 NUMBER_ENEMIES_ALIVE
           !byte 0
+NUMBER_SPAWN_SPOTS_ALIVE
+          !byte 0
+          
 LEVEL_DONE_DELAY
           !byte 0
 DELAYED_GENERIC_COUNTER
@@ -6501,6 +6656,8 @@ SCREEN_DATA_TABLE
           !word LEVEL_8
           !word LEVEL_9
           !word LEVEL_10
+          !word LEVEL_11
+          !word LEVEL_12
           !word 0
           
           
@@ -6695,6 +6852,51 @@ LEVEL_10
           !byte LD_OBJECT,34,10,TYPE_SPIDER
           !byte LD_OBJECT,19,13,TYPE_SPIDER
           !byte LD_OBJECT,4,16,TYPE_SPIDER
+          !byte LD_END
+
+LEVEL_11
+          !byte LD_LINE_H_ALT,1,5,14,96,13
+          !byte LD_LINE_H_ALT,13,8,14,96,13
+          !byte LD_LINE_H_ALT,25,11,14,96,13
+          !byte LD_LINE_H_ALT,13,14,14,96,13
+          !byte LD_LINE_H_ALT,1,17,14,96,13
+          !byte LD_LINE_H_ALT,1,20,38,96,13
+          !byte LD_LINE_H_ALT,1,21,38,2,13
+          !byte LD_QUAD,3,3,1
+          
+          !byte LD_OBJECT,18,19,TYPE_PLAYER_DEAN
+          !byte LD_OBJECT,21,19,TYPE_PLAYER_SAM
+          
+          !byte LD_SPAWN_SPOT,4,4,TYPE_SPIDER,5
+          !byte LD_OBJECT,19,7,TYPE_SPIDER
+          !byte LD_OBJECT,34,10,TYPE_SPIDER
+          !byte LD_OBJECT,19,13,TYPE_SPIDER
+          !byte LD_OBJECT,4,16,TYPE_SPIDER
+          !byte LD_END
+
+LEVEL_12
+          !byte LD_QUAD,6,3,1
+          !byte LD_LINE_H_ALT,4,5,6,96,13
+          !byte LD_QUAD,6,8,1
+          !byte LD_LINE_H_ALT,4,10,6,96,13
+          !byte LD_QUAD,6,13,1
+          !byte LD_LINE_H_ALT,4,15,6,96,13
+          !byte LD_QUAD,32,3,1
+          !byte LD_LINE_H_ALT,30,5,6,96,13
+          !byte LD_QUAD,32,8,1
+          !byte LD_LINE_H_ALT,30,10,6,96,13
+          !byte LD_QUAD,32,13,1
+          !byte LD_LINE_H_ALT,30,15,6,96,13
+          
+          !byte LD_OBJECT,18,19,TYPE_PLAYER_DEAN
+          !byte LD_OBJECT,21,19,TYPE_PLAYER_SAM
+          
+          !byte LD_SPAWN_SPOT,6,3,TYPE_ZOMBIE,5
+          !byte LD_SPAWN_SPOT,6,8,TYPE_ZOMBIE,5
+          !byte LD_SPAWN_SPOT,6,13,TYPE_ZOMBIE,5
+          !byte LD_SPAWN_SPOT,32,3,TYPE_ZOMBIE,5
+          !byte LD_SPAWN_SPOT,32,8,TYPE_ZOMBIE,5
+          !byte LD_SPAWN_SPOT,32,13,TYPE_ZOMBIE,5
           !byte LD_END
 
 LEVEL_BORDER_DATA
