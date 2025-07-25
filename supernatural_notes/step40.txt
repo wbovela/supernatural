@@ -1,0 +1,61 @@
+Data changes:
+-------------
+
+line 6857
+There are two new levels (11 and 12)
+These levels contain new elements: LD_SPAWN_SPOT with X, Y, Type of object and count
+
+line 6521
+NUMBER_SPAWN_SPOTS_ALIVE counts the number of spots alive at any time during a level. When a spot has spawned all of its enemy objects, the spot is no longer alive. The level ends when all spawn points have spawned all of their enemies.
+
+line 198
+SPAWN_SPOT_COUNT        = 8
+This determines the size of each of the following tables:
+
+line 6261
+SPAWN_SPOT_X. The x position of each spot
+SPAWN_SPOT_Y. The y position of each spot
+SPAWN_SPOT_ACTIVE. Active state
+SPAWN_SPOT_TYPE. Type of enemy
+SPAWN_SPOT_SPAW_COUNT. No enemies to spawn 
+SPAWN_SPOT_DELAY. Frames to wait until next spawn
+
+NEW FUNCTIONS:
+line 5474
+LevelSpawnSpot
+--------------
+This function is called while building a level.
+First an empty spawn spot is located in the SPAWN_SPOT_ACTIVE table.
+If a spot is found, the number of spots alive is incremented.
+And then the data is read for each parameter (x, y, type and number of spawns)
+When this is called ZEROPAGE_POINTER_1 is pointing at the level data.
+The data is written in the tables just mentioned. So they are valid during the level.
+Note that LevelSpawnSpot is JMP-ed to on line 4657 (.LevelDataLoop). So there is no RTS but a JMP to NextLevelData (the next data line for this level).
+Also note that the Y register needs to be pushed to the stack. The first command at NextLevelData pulls it off the stack. The value in Y is a cursor into the level data and needs to be preserved.
+
+line 4659
+LEVEL_ELEMENT_TABLE_LO
+LEVEL_ELEMENT_TABLE_HI
+----------------------
+These tables contain the pointers to the functions that perform the tasks for everything that is placed on the level. LevelSpawnSpot is the new function that is added here.
+
+line 4582
+BuildScreen
+-----------
+In the BuildScreen function we can see a problem. Here the level's data tables are cleared. Our new table SPAWN_SPOT_ACTIVE is here too. All elements are cleared, but only up to 8 elements. Remember that we have a SPAWN_SPOT_COUNT. This was set to 8, so it works like this but this is actually a bug. If SPAWN_SPOT_COUNT was 10, the last 2 elements of this table wouldn't be set to 0.
+
+line 909
+ProcessSpawnSpots
+-----------------
+While a level is running, we have to handle what happens with each spawn spot. 
+We loop through all the spawn points (SPAWN_POINT_ACTIVE) and do something for each active one. Note that we use SPAWN_SPOT_COUNT here, instead of just the constant 8.
+We only try to spawn when the spawn delay has passed (or is equal to zero). If not, we decrease the spawn delay for this spawn spot and continue on. Initially however, all are 0, so we always try to spawn the first time round.
+Try to spawn starts with setting a SPAWN_SPOT_DELAY to 128 frames.
+We then check whether there are 4 enemies alive. (A - 3) if A>=4 then the result is plus and we don't spawn.
+Otherwise, we store X temporarily. Get the spawn type and x, y coordinates, find an empty sprite slot. If we find one then we spawn the object. We restore x and continue. Since we've spawned one enemy from this spawn point we need to subtract one from SPAWN_SPOT_SPAWN_COUNT.
+
+line 864
+GameFlowControl
+---------------
+We see that ProcessSpawnPoints is called here.
+Here we see that a level doesn't end until all spawn points alive has reduced to 0.
