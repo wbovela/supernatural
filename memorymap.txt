@@ -2,9 +2,30 @@ Supernatural memory map:
 
 During program setup, all ROMS are temporarily switched off to make place for RAM. Sprite data is then copied to $D000, character data is copied to $F000. After copying, memory setup is restored to whatever it was. The VIC chip remains to see the sprite and character data at the given locations. 
 
-VIC Memory Control ($d018) set to %00111100=$3c. Meaning 12 (%1100)*1K=$3000 or 6 (%110)*2K=$3000 from start of VIC. 
-VIC bank control ($dd00) set to $fc=%11111100. Meaning %00=bank 3 = 3*16K = $C000-$FFFF.
-So character set data is at $C000 + $3000 = $F000
+Set which bank the VIC uses we set $DD00 (CIA_PRA)
+--------------------------------------------------
+
+VIC bank control (bits #0 and #1 of $DD00) set to $fc=%11111100. Meaning %00=bank 3 = 3*16K = $C000-$FFFF.
+
+Set where the VIC sees character data and screen memory in its 16K bank we use $d018.
+------------------------------------------------------------------------------------
+
+VIC Memory Control ($d018) set to %00111100=$3c. 
+
+	bits #0-#4 for character memory: 12 (%1100)*1K=$3000 or 6 (%110)*2K=$3000 from start of VIC. Note that bit#0 is actually ignored.
+	bit #5-#7 for screen memory: 48 (%0011)*64=$0C00.
+
+Where is everything in absolute memory?
+---------------------------------------
+Character set data is at $C000 + $3000 = $F000 (hard coded in CopyCharSet)
+Screen memory is set at $C000 + $0C00 = $CC00 (SCREEN_CHAR)
+Sprite pointers are located at the end of screen memory.
+SPRITE_POINTER_BASE = SCREEN_CHAR + $3F8
+
+To work out where the sprite definitions are
+--------------------------------------------
+SPRITE_BASE = 64
+(SPRITE_BASE + 0) * 64 = 64 * 64 = $1000 + $C000 = $D000
 
 Code:
 $C400-$0810 = 42Kb 
